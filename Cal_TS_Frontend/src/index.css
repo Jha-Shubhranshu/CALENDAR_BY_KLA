@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.3s ease-out;
+}
+
+
+.custom-scrollbar {
+  scrollbar-width: thin;                  /* Firefox */
+  scrollbar-color: #4b5563 #ffffff;       /* thumb track */
+}
+
+/* Chrome, Edge, Safari */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+/* Remove arrows (important) */
+.custom-scrollbar::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Track (light background column) */
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #ffffff;
+}
+
+/* Thumb (dark moving part, rectangular) */
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 0;                      /* <-- rectangular */
+}
+
+/* Optional hover (still rectangular) */
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}
