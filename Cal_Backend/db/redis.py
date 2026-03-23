@@ -24,9 +24,13 @@ async def add_jti_to_blocklist(jti: str, is_refresh: bool = False) -> None:
         jti: JWT ID to blacklist
         is_refresh: True if this is a refresh token, False for access token
     """
-    expiry_time = REFRESH_TOKEN_EXPIRY if is_refresh else ACCESS_TOKEN_EXPIRY
-    
-    await token_blocklist.set(name=jti, value="", ex=expiry_time)
+    try:
+        expiry_time = REFRESH_TOKEN_EXPIRY if is_refresh else ACCESS_TOKEN_EXPIRY
+        await token_blocklist.set(name=jti, value="", ex=expiry_time)
+    except Exception as e:
+        print(f"Redis error in add_jti_to_blocklist: {e}")
+        # Log error but don't crash the application
+        pass
 
 async def add_access_jti_to_blocklist(jti: str) -> None:
     """
@@ -50,8 +54,13 @@ async def token_in_blocklist(jti: str) -> bool:
     Returns:
         True if token is blacklisted, False otherwise
     """
-    result = await token_blocklist.get(jti)
-    return result is not None
+    try:
+        result = await token_blocklist.get(jti)
+        return result is not None
+    except Exception as e:
+        print(f"Redis error in token_in_blocklist: {e}")
+        # If Redis is down, we fail open (allow the token) to keep the app working
+        return False
 
 async def get_blocklist_stats() -> dict:
     """

@@ -31,7 +31,10 @@ def register_middleware(app: FastAPI):
         response = await call_next(request)
         processing_time = time.time() - start_time
         
-        message = f"{request.client.host}:{request.client.port}-{request.method}-{request.url.path}-{response.status_code} completed after {processing_time}s"
+        client_host = request.client.host if request.client else "unknown"
+        client_port = request.client.port if request.client else "0"
+        
+        message = f"{client_host}:{client_port}-{request.method}-{request.url.path}-{response.status_code} completed after {processing_time}s"
         
         print(message)
         return response
@@ -84,9 +87,10 @@ def register_middleware(app: FastAPI):
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
         "https://calendar-by-kla.vercel.app",
-        "https://calendar-by-kla-shubham.vercel.app", # Potential variant
+        "https://calendar-by-kla-shubham.vercel.app",
     ]
 
+    # Add CORS middleware FIRST (which means it wraps everything else)
     app.add_middleware( 
         CORSMiddleware,
         allow_origins=origins,
@@ -94,12 +98,13 @@ def register_middleware(app: FastAPI):
         allow_methods=["*"],
         allow_headers=["*"],
         allow_credentials=True,
+        expose_headers=["*"]
     )
     
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "bookly-api-dc03.onrender.com", "0.0.0.0", "calendar-by-kla.onrender.com", "*.onrender.com"],
-    )
+    # app.add_middleware(
+    #     TrustedHostMiddleware,
+    #     allowed_hosts=["localhost", "127.0.0.1", "bookly-api-dc03.onrender.com", "0.0.0.0", "calendar-by-kla.onrender.com", "*.onrender.com"],
+    # )
     
     
     

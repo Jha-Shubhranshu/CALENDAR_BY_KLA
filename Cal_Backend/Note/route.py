@@ -1,5 +1,5 @@
 # routes/notes.py
-import select
+from sqlalchemy import select
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID

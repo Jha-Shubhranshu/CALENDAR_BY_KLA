@@ -12,8 +12,8 @@ from fastapi.responses import PlainTextResponse
 # from src.books.routes import book_router
 # from src.reviews.routes import review_router
 # from src.tags.routes import tags_router
-# from .errors import register_all_errors
-# from .middleware import register_middleware
+from .errors import register_all_errors
+from .middleware import register_middleware
 from Cal_Backend.db.main import init_db
 from .middleware import register_middleware
 
@@ -53,16 +53,9 @@ app = FastAPI(
 
 )
 
-# register_all_errors(app)
+register_all_errors(app)
 
 register_middleware(app)
-
-@app.exception_handler(Exception)
-async def debug_exception_handler(request, exc):
-    return PlainTextResponse(traceback.format_exc(), status_code=500)
-
-
-
 
 app.include_router(Json_router, prefix=f"{version_prefix}/ArjunJson", tags=["Json"])
 # app.include_router(book_router, prefix=f"{version_prefix}/books", tags=["books"])
