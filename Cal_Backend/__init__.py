@@ -55,6 +55,8 @@ app = FastAPI(
 # register_all_errors(app)
 
 register_middleware(app)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])  # add this
+
 
 
 
