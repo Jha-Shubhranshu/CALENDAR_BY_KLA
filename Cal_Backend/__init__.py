@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from fastapi.middleware.trustedhost import TrustedHostMiddleware  # ← add this
 from Cal_Backend.auth.routes import auth_router
 from Cal_Backend.Note.route import note_router
 from Cal_Backend.Label.route import label_router
@@ -56,7 +55,6 @@ app = FastAPI(
 # register_all_errors(app)
 
 register_middleware(app)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])  # add this
 
 
 
