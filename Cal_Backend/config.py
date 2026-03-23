@@ -15,6 +15,8 @@ class Settings(BaseSettings):
 
     REDIS_HOST: str ="localhost"        #Redis was used for token revoking functionality, if I recall correctly.
     REDIS_PORT: int =6379
+    REDIS_PASSWORD: str = ""  # ← add this
+
     
     MAIL_USERNAME: str
     MAIL_PASSWORD: str
