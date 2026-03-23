@@ -4,7 +4,7 @@ from .service import UserService
 from Cal_Backend.db.main import get_session
 from sqlmodel.ext.asyncio.session import AsyncSession 
 from fastapi.exceptions import HTTPException
-from .utils import create_access_tokens, decode_token, verify_password, clear_auth_cookies  
+from .utils import create_access_tokens, decode_token, verify_password, clear_auth_cookies, set_auth_cookies  
 from fastapi.responses import JSONResponse
 from datetime import timedelta, datetime
 from .dependencies import RefreshTokenBearer, AccessTokenBearerC, get_current_userC, RoleChecker
@@ -78,28 +78,8 @@ async def login_users(U_Creds: UserLoginModel, session: AsyncSession = Depends(g
                 }
             )
             
-            # Set HttpOnly cookies
-            response.set_cookie(
-                key="access_token",
-                value=access_token,
-                max_age=ACCESS_TOKEN_EXPIRY,
-                httponly=True,
-                secure=False,  # Set to False for localhost development if needed
-                samesite="none",
-                path="/",
-                domain=None
-            )
-            
-            response.set_cookie(
-                key="refresh_token", 
-                value=refresh_token,
-                max_age=REFRESH_TOKEN_EXPIRY * 24 * 3600,  # Convert days to seconds
-                httponly=True,
-                secure=False,  # Set to False for localhost development if needed
-                samesite="none",
-                path="/",
-                domain=None
-            )
+            # Set HttpOnly cookies using helper function
+            set_auth_cookies(response, access_token, refresh_token)
             
             return response
             
@@ -121,18 +101,9 @@ async def get_new_access_token(token_details: dict = Depends(RefreshTokenBearer(
         
         response = JSONResponse(content={"message": "Tokens refreshed successfully"})
         
-        # Set new access token cookie
-        response.set_cookie(
-            key="access_token",
-            value=new_access_token,
-            max_age=ACCESS_TOKEN_EXPIRY,
-            httponly=True,
-            secure=False,  # False for localhost development
-            samesite="none",
-            path="/"
-        )
-        
+        # Set new tokens using helper function
         # Check if refresh token needs rotation (less than 6 hours remaining)
+        new_refresh_token = None
         if time_remaining < REFRESH_EARLY_THRESHOLD:
             # Create new refresh token
             new_refresh_token = create_access_tokens(
@@ -144,16 +115,7 @@ async def get_new_access_token(token_details: dict = Depends(RefreshTokenBearer(
             # Blacklist old refresh token
             await add_jti_to_blocklist(token_details['jti'], is_refresh=True)
             
-            # Set new refresh token cookie
-            response.set_cookie(
-                key="refresh_token",
-                value=new_refresh_token,
-                max_age=REFRESH_TOKEN_EXPIRY * 24 * 3600,
-                httponly=True,
-                secure=False,  # False for localhost development
-                samesite="none", 
-                path="/"
-            )
+        set_auth_cookies(response, new_access_token, new_refresh_token)
         
         return response
         

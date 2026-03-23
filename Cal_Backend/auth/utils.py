@@ -84,7 +84,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str =
         value=access_token,
         max_age=ACCESS_TOKEN_EXPIRY,
         httponly=True,
-        secure=False,  # False for localhost development
+        secure=True,  # MUST be True for SameSite=None
         samesite="none",
         path="/"
     )
@@ -96,7 +96,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str =
             value=refresh_token,
             max_age=2 * 24 * 3600,  # 2 days in seconds
             httponly=True,
-            secure=False,  # False for localhost development
+            secure=True,  # MUST be True for SameSite=None
             samesite="none",
             path="/"
         )
@@ -111,13 +111,15 @@ def clear_auth_cookies(response: Response) -> None:
     response.delete_cookie(
         key="access_token",
         path="/",
-        samesite="lax"
+        secure=True,
+        samesite="none"
     )
     
     response.delete_cookie(
         key="refresh_token", 
         path="/",
-        samesite="lax"
+        secure=True,
+        samesite="none"
     )
 
 def get_token_time_remaining(token_data: dict) -> int:

@@ -19,5 +19,6 @@ python-multipart
 email-validator
 python-dotenv
 boto3
+fastapi-mail
 httpx
 aiomysql
