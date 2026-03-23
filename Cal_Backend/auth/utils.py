@@ -12,7 +12,7 @@ from fastapi import Request, status, Response
 from fastapi.exceptions import HTTPException
 
 passwd_context = CryptContext(
-    schemes=['bcrypt']
+    schemes=['argon2', 'bcrypt']
 )
 
 ACCESS_TOKEN_EXPIRY = 3600
