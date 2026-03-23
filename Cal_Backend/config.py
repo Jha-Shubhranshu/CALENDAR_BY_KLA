@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     REDIS_HOST: str ="localhost"        #Redis was used for token revoking functionality, if I recall correctly.
     REDIS_PORT: int =6379
+    REDIS_PASSWORD: str = ""  # ← add this
+
     
     MAIL_USERNAME: str
     MAIL_PASSWORD: str
@@ -32,35 +34,6 @@ class Settings(BaseSettings):
         
     model_config = SettingsConfigDict(env_file=".env",extra="ignore")
     
-    
-    
-    
-    
-    
-    
-    #Added by claude for AI Chat Feature
-    PERPLEXITY_API_KEY: str
-    PERPLEXITY_BASE_URL: str = "https://api.perplexity.ai"
-    PERPLEXITY_MODEL: str = "sonar"
-    PERPLEXITY_TIMEOUT: int = 120
-    STORAGE_TYPE: str = "s3"  # 's3' or 'local'
-    AWS_ACCESS_KEY_ID: Optional[str] = None
-    AWS_SECRET_ACCESS_KEY: Optional[str] = None
-    AWS_S3_BUCKET: Optional[str] = None
-    AWS_REGION: str = "us-east-1"
-    LOCAL_STORAGE_PATH: str = "./uploads"
-    MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
-    ALLOWED_MIME_TYPES: list = [
-        'image/jpeg',
-        'image/png',
-        'image/webp',
-        'image/gif',
-        'application/pdf',
-        'text/plain'
-    ]
-    MAX_CONTEXT_TOKENS: int = 120000
-    MAX_MESSAGE_LENGTH: int = 50000
-    MESSAGES_PER_PAGE: int = 50
     
 model_config = ConfigDict(
     env_file=".env",

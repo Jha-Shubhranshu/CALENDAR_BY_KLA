@@ -59,6 +59,7 @@ register_middleware(app)
 
 
 
+
 app.include_router(Json_router, prefix=f"{version_prefix}/ArjunJson", tags=["Json"])
 # app.include_router(book_router, prefix=f"{version_prefix}/books", tags=["books"])
 app.include_router(auth_router, prefix=f"{version_prefix}/auth", tags=["auth"])
