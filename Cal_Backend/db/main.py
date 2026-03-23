@@ -20,6 +20,7 @@ engine: AsyncEngine = create_async_engine(
     DATABASE_URL_ASYNC,
     echo=True,
     future=True,
+    connect_args={"ssl": "require"}  # ← add this
 )
 
 # Silence SQLAlchemy engine INFO logs
