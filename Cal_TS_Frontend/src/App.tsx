@@ -1,4 +1,4 @@
-import { Route, Routes, useNavigate } from 'react-router-dom'
+import { Route, Routes, useNavigate, Navigate} from 'react-router-dom'
 import { Container } from 'react-bootstrap';
 import { NotesPage } from './pages/NotesPageOG';
 import Authsignup from './componentsOG/auth/Authsignup';
@@ -7,7 +7,6 @@ import DragDropFiles from './componentsOG/DragDropFiles';
 import { GoogleKeepImport } from './componentsOG/GoogleKeepImport';
 import { GoogleKeepBulkImport } from './componentsOG/Googlekeepbulkimport';
 import { CalendarPage } from './pages/CalendarPage';
-
 
 const App = () => {
 
@@ -44,13 +43,13 @@ const handleLogOut = () => {
       </Route> */}
 
 
-      <Route path="/sign-up" element={<Authsignup onAuthSuccess={handleAuthSuccessSignup}/>} />   
-      <Route path="/sign-in" element={<Authsignin onAuthSuccess={handleAuthSuccessSignin}/>} />   
-      <Route path="/import" element={<DragDropFiles onLogout={handleLogOut}/>} />   
-      <Route path="/importnotes" element={<GoogleKeepImport/>} />   
-      <Route path="/bulkimportnotes" element={<GoogleKeepBulkImport/>} />   
+      <Route path="/" element={<Navigate to="/sign-in" replace />} />  {/* ← add this */}
+      <Route path="/sign-up" element={<Authsignup onAuthSuccess={handleAuthSuccessSignup}/>} />
+      <Route path="/sign-in" element={<Authsignin onAuthSuccess={handleAuthSuccessSignin}/>} />
+      <Route path="/import" element={<DragDropFiles onLogout={handleLogOut}/>} />
+      <Route path="/importnotes" element={<GoogleKeepImport/>} />
+      <Route path="/bulkimportnotes" element={<GoogleKeepBulkImport/>} />
       <Route path="/calendar" element={<CalendarPage />} />
-
       <Route path="/note" element={<NotesPage />} />
 
       
