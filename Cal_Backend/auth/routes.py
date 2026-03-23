@@ -85,7 +85,7 @@ async def login_users(U_Creds: UserLoginModel, session: AsyncSession = Depends(g
                 max_age=ACCESS_TOKEN_EXPIRY,
                 httponly=True,
                 secure=False,  # Set to False for localhost development if needed
-                samesite="lax",
+                samesite="none",
                 path="/",
                 domain=None
             )
@@ -96,7 +96,7 @@ async def login_users(U_Creds: UserLoginModel, session: AsyncSession = Depends(g
                 max_age=REFRESH_TOKEN_EXPIRY * 24 * 3600,  # Convert days to seconds
                 httponly=True,
                 secure=False,  # Set to False for localhost development if needed
-                samesite="lax",
+                samesite="none",
                 path="/",
                 domain=None
             )
@@ -128,7 +128,7 @@ async def get_new_access_token(token_details: dict = Depends(RefreshTokenBearer(
             max_age=ACCESS_TOKEN_EXPIRY,
             httponly=True,
             secure=False,  # False for localhost development
-            samesite="lax",
+            samesite="none",
             path="/"
         )
         
@@ -151,7 +151,7 @@ async def get_new_access_token(token_details: dict = Depends(RefreshTokenBearer(
                 max_age=REFRESH_TOKEN_EXPIRY * 24 * 3600,
                 httponly=True,
                 secure=False,  # False for localhost development
-                samesite="lax", 
+                samesite="none", 
                 path="/"
             )
         

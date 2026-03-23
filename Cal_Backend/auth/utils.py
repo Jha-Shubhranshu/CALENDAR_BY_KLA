@@ -85,7 +85,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str =
         max_age=ACCESS_TOKEN_EXPIRY,
         httponly=True,
         secure=False,  # False for localhost development
-        samesite="lax",
+        samesite="none",
         path="/"
     )
     
@@ -97,7 +97,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str =
             max_age=2 * 24 * 3600,  # 2 days in seconds
             httponly=True,
             secure=False,  # False for localhost development
-            samesite="lax",
+            samesite="none",
             path="/"
         )
 
