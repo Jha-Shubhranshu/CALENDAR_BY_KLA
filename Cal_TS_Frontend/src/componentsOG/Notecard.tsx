@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import type { NoteCardDisplay } from '../typesOG/note.types';
-import { Bell, User, Palette, Image, Trash2, MoreVertical, Pin } from 'lucide-react';
+import { Bell, User, Palette, Image, Trash2, Pin } from 'lucide-react';
 import { ColourPicker } from './ColorPicker';
 import { useRef } from 'react';
 import { useClickOutside } from '../hooksOG/Intelligenceeffects/useClickOutside';
 
 import { X } from 'lucide-react';
-import type { LabelDisplay } from '../typesOG/note.types';
 
 const formatTimestamp = (timestamp: Date | string): string => {
   const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
@@ -34,7 +33,7 @@ export function Notecard ({note, onDelete, onTogglePin, onChangeColor, onEdit, o
   
   const [showActions, setShowActions] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const colorPickerRef = useRef<HTMLElement>(null);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
 
   useClickOutside(colorPickerRef, () => setShowColorPicker(false));
 

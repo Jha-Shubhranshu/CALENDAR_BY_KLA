@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { ProjectDisplay, ProjectWithMessages } from '../typesOG/project.types';
+import type { ProjectDisplay } from '../typesOG/project.types';
 import { getAllProjects, createProject, updateProject, deleteProject } from '../api/projectsAPIAxios';
 
 export function useProjects() {

@@ -86,7 +86,7 @@ export const GoogleKeepBulkImport: React.FC = () => {
       console.log(`Uploading ${files.length} files...`);
 
       // Call bulk import API
-      const response = await fetch('http://localhost:8004/api/v1/ArjunJson/google-keep/bulk', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/ArjunJson/google-keep/bulk`, {
         method: 'POST',
         body: formData,
         credentials: 'include'
@@ -113,7 +113,7 @@ export const GoogleKeepBulkImport: React.FC = () => {
 
   const downloadFailureReport = () => {
     if (result?.failure_report_url) {
-      const fullUrl = `http://localhost:8004${result.failure_report_url}`;
+      const fullUrl = `${import.meta.env.VITE_API_BASE_URL}${result.failure_report_url}`;
       window.open(fullUrl, '_blank');
     }
   };
@@ -124,6 +124,7 @@ export const GoogleKeepBulkImport: React.FC = () => {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  /*
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'success': return 'text-green-600';
@@ -132,6 +133,7 @@ export const GoogleKeepBulkImport: React.FC = () => {
       default: return 'text-gray-600';
     }
   };
+  */
 
   return (
     <div className="max-w-4xl mx-auto p-6">

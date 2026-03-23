@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { ConversationDisplay, ConversationWithMessages, NotebookSource } from '../typesOG/conversation.types';
 
-const BASE_URL = 'http://localhost:8004/api/v1/conversations';
+const BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api/v1/conversations`;
 
 export async function getAllConversations(
   source?: NotebookSource,

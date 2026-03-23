@@ -85,7 +85,7 @@ export default function DragDropFiles({ onLogout }: DragDropFilesPropsSchema) {
     }
 
     // ✅ Step 4: Send as JSON, not FormData
-    const res = await fetch('http://localhost:8004/api/v1/ArjunJson/json', {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/ArjunJson/json`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

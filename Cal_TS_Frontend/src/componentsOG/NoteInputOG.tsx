@@ -14,16 +14,13 @@ interface NoteInputPropsSchema {
 
 
 export function NoteInput({onCreateNote}: NoteInputPropsSchema) {
-    const [content, setContent] = useState('');
-    const [title, setTitle] = useState('');
-
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [newNote, setNewNote] = useState({title: '', content: '', background_color: ''});
     const [isExpanded, setIsExpanded] = useState(false);
     const [currentColor, setCurrentColor] = useState("")
 
-    const colorPickerRef = useRef<HTMLElement>(null);
-    const noteinputRef = useRef<HTMLElement>(null);
+    const colorPickerRef = useRef<HTMLDivElement>(null);
+    const noteinputRef = useRef<HTMLDivElement>(null);
     
     useClickOutsideinputbox(noteinputRef, ()=> setIsExpanded(false))
     useClickOutside(colorPickerRef, ()=> setShowColorPicker(false))
@@ -84,7 +81,13 @@ export function NoteInput({onCreateNote}: NoteInputPropsSchema) {
                         <Palette size={16} className="text-gray-700" />
                         </button>
                         {showColorPicker && (
-                        <ColourPicker onSelectColor={setCurrentColor} onClose={() => setShowColorPicker(false)} forsave={(color) => setNewNote(prev => ({ ...prev, color }))} />
+                        <ColourPicker 
+                          onSelectColor={(color: string) => {
+                            setCurrentColor(color);
+                            setNewNote(prev => ({ ...prev, background_color: color }));
+                          }} 
+                          onClose={() => setShowColorPicker(false)} 
+                        />
                         )}
                         <button onClick={handleSubmit} className="px-6 py-2 hover:bg-gray-200 rounded">Save</button>
                     </div>

@@ -83,6 +83,7 @@ def register_middleware(app: FastAPI):
         "http://localhost:5174",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
+        "https://your-app.vercel.app",  # ← add this once you deploy frontend
     ]
 
     app.add_middleware( 
@@ -95,7 +96,7 @@ def register_middleware(app: FastAPI):
     
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "bookly-api-dc03.onrender.com", "0.0.0.0"],
+        allowed_hosts=["localhost", "127.0.0.1", "bookly-api-dc03.onrender.com", "0.0.0.0", "calendar-by-kla.onrender.com", "*.onrender.com"],
     )
     
     

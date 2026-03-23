@@ -2,7 +2,7 @@ import axios from "axios";
 import type { LabelDisplay, LabelToBe } from "../typesOG/note.types";
 
 
-const BASE_URL_LABEL = "http://localhost:8004/api/v1/labels";
+const BASE_URL_LABEL = `${import.meta.env.VITE_API_BASE_URL}/api/v1/labels`;
 
 
 

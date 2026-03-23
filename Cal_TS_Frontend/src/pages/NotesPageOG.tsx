@@ -1,16 +1,14 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { Header } from '../componentsOG/Header';
 import { NoteInput } from '../componentsOG/NoteInputOG';
 import { NotesGrid } from '../componentsOG/NotesGrid';
 import { useNotes } from '../hooksOG/useNotes';
-import { Notecard } from '../componentsOG/Notecard';
 import { useSearch } from '../hooksOG/useSearch';
 import { NoteEditModal } from '../componentsOG/intelligentmodals/NoteEditModal';
 import type { NoteCardDisplay } from '../typesOG/note.types';
 import { Sidebar } from '../componentsOG/Sidebar';
 import { useLabels } from '../hooksOG/useLabels';
 import { addLabelToNote, removeLabelFromNote } from '../api/labelsAPIAxios';
-import { Lightbulb } from 'lucide-react';
 import { useInfiniteScroll } from '../hooksOG/useInfiniteScroll';
 import { Loader2 } from 'lucide-react';
 import { useProjects } from '../hooksOG/useProjects';
@@ -18,20 +16,19 @@ import { ConversationsSidebar } from '../componentsOG/ConversationsSidebar';
 import { ChatWindow } from '../componentsOG/ChatWindow';
 import { ProjectSelectorModal } from '../componentsOG/modals/ProjectSelectorModal';
 import { CreateProjectModal } from '../componentsOG/modals/CreateProjectModal';
-import type { NotebookSource, ConversationWithMessages, MessageDisplay } from '../typesOG/conversation.types';
+import type { NotebookSource, ConversationWithMessages } from '../typesOG/conversation.types';
 import type { ProjectWithMessages } from '../typesOG/project.types';
 import { getConversation } from '../api/conversationsAPIAxios';
 import { getProject, addMessageToProject, removeMessageFromProject } from '../api/projectsAPIAxios';
 
 export function NotesPage() {
   const { notes, loadingnotes, createNoteHook, deleteNote, togglePin, changeColor, updateNote, loadNotes, setNotes, hasMore, loadMoreNotes} = useNotes();
-  const { labels, loadinglabels, createLabelhook, loadLabels } = useLabels();
+  const { labels, loadinglabels, createLabelhook } = useLabels();
   const [sidebarOpen, setSidebarOpen] = useState(true); // ✅ Default to true for desktop
-  const { projects, loading: loadingProjects, createProject, updateProject, deleteProject, loadProjects } = useProjects();
+  const { projects, createProject, deleteProject, loadProjects } = useProjects();
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedNotebookSource, setSelectedNotebookSource] = useState<NotebookSource | null>(null);
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   
   const [openChatWindow, setOpenChatWindow] = useState<{
     type: 'conversation' | 'project';
@@ -51,9 +48,7 @@ export function NotesPage() {
       setSelectedProjectId(projectId);
       setSelectedLabelId(null);
       setSelectedNotebookSource(null);
-      setSelectedConversationId(null);
-      const projectData = await getProject(projectId);
-      setOpenChatWindow({ type: 'project', data: projectData });
+      const projectData = await getProject(projectId);    setOpenChatWindow({ type: 'project', data: projectData });
     } catch (error) {
       console.error('Error loading project:', error);
     } finally {
@@ -79,11 +74,9 @@ export function NotesPage() {
     setSelectedLabelId(null);
     setOpenChatWindow(null);
   };
-
   const handleSelectConversation = async (conversationId: string) => {
     try {
       setLoadingChatWindow(true);
-      setSelectedConversationId(conversationId);
       const conversationData = await getConversation(conversationId);
       setOpenChatWindow({ type: 'conversation', data: conversationData });
       setSelectedNotebookSource(null);
@@ -100,7 +93,6 @@ export function NotesPage() {
 
   const handleCloseChatWindow = () => {
     setOpenChatWindow(null);
-    setSelectedConversationId(null);
     setSelectedProjectId(null);
   };
 
@@ -164,7 +156,6 @@ export function NotesPage() {
   const handleNavigateToOriginal = async (conversationId: string, messageId: string) => {
     try {
       setLoadingChatWindow(true);
-      setSelectedConversationId(conversationId);
       
       const conversationData = await getConversation(conversationId);
       setOpenChatWindow({ 
@@ -207,7 +198,7 @@ export function NotesPage() {
       : notes;
   }, [notes, selectedLabelId]);
 
-  const { searchQuery, setSearchQuery, filteredNotes, pinnedNotes: searchPinnedNotes, unpinnedNotes: searchUnpinnedNotes, hasNote } = useSearch(displayedNotes);
+  const { searchQuery, setSearchQuery, pinnedNotes: searchPinnedNotes, unpinnedNotes: searchUnpinnedNotes, hasNote } = useSearch(displayedNotes);
 
 
 
@@ -364,7 +355,6 @@ export function NotesPage() {
     );
   }
 
-  const notesToDisplay = searchQuery ? filteredNotes : displayedNotes;
   const pinnedToShow = searchQuery ? searchPinnedNotes : filteredPinnedNotes;
   const unpinnedToShow = searchQuery ? searchUnpinnedNotes : filteredUnpinnedNotes;
 

@@ -38,7 +38,7 @@ export const GoogleKeepImport: React.FC = () => {
 //       const notes = JSON.parse(content);
 
 //       // Call API
-//       const response = await fetch('http://localhost:8004/api/v1/ArjunJson/google-keep', {
+//       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/ArjunJson/google-keep`, {
 //         method: 'POST',
 //         headers: {
 //           'Content-Type': 'application/json',
@@ -92,7 +92,7 @@ const handleImport = async () => {
     console.log('Sending request:', requestBody);
 
     // Call API
-    const response = await fetch('http://localhost:8004/api/v1/ArjunJson/google-keep', {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/ArjunJson/google-keep`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

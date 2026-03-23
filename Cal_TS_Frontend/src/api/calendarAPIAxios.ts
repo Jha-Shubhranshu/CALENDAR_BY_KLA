@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = 'http://localhost:8004/api/v1/calendar';
+const BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api/v1/calendar`;
 
 export interface NotebookActivity {
   claude: { count: number; conversations: { id: string; title: string }[] };

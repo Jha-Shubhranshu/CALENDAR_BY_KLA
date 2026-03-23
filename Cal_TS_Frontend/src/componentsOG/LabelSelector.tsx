@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { X, Plus, Tag, FolderPlus } from 'lucide-react';
 import type { LabelDisplay, LabelToBe } from '../typesOG/note.types';
 import { useClickOutside } from '../hooksOG/Intelligenceeffects/useClickOutside';
@@ -33,7 +33,7 @@ export function LabelSelector({
 
     const handleCreateLabel = async () => {
         if (newLabelName.trim()) {
-            await onCreateLabel({ name: newLabelName.trim(), color: '#fbbf24' });
+            await onCreateLabel({ name: newLabelName.trim(), background_color: '#fbbf24' });
             setNewLabelName('');
             setShowCreateInput(false);
         }

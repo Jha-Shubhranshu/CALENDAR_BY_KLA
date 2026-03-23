@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { X, MessageSquare, ChevronDown, Check } from 'lucide-react';
-import type { ConversationDisplay, NotebookSource } from '../typesOG/conversation.types';
+import type { NotebookSource } from '../typesOG/conversation.types';
 import { useConversations } from '../hooksOG/useConversations';
 import { useClickOutside } from '../hooksOG/Intelligenceeffects/useClickOutside';
 

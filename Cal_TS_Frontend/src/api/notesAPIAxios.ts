@@ -1,14 +1,14 @@
 import axios from "axios";
 import type {Note, NoteCardDisplay } from "../typesOG/note.types";
 
-const BASE_URL = "http://localhost:8004/api/v1/notes";
+const BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api/v1/notes`;
 
 
 export async function getCurrentUser(){
 console.log("Asking for current user:");
     
    try {
-      const res = await axios.get("http://localhost:8004/api/v1/auth/me", 
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/me`, 
         {
         headers: { "Content-Type": "application/json" },
         withCredentials: true,
@@ -18,8 +18,8 @@ console.log("Asking for current user:");
       return res.data;
 
       
-  } catch (error) {
-      console.error("❌ fetching failed:", error.response?.data || error.message);
+  } catch (err: any) {
+      console.error("❌ fetching failed:", err.response?.data || err.message);
     }
 
    }

@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       // Call your logout endpoint to clear HttpOnly cookies
-      await fetch("http://localhost:8004/api/v1/auth/logout", {
+      await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/logout`, {
         method: "POST",
         credentials: "include", // Important: includes HttpOnly cookies
       });

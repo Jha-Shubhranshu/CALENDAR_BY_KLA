@@ -1,7 +1,6 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { DateActivityPopup } from './modals/DateActivityPopup';
 import type { DateActivity } from '../api/calendarAPIAxios';
-import type { ProjectDisplay } from '../typesOG/project.types';
 
 
 interface CalendarDayProps {
@@ -10,7 +9,6 @@ interface CalendarDayProps {
   isCurrentMonth: boolean;
   isToday: boolean;
   selectedProjects: string[];
-  projects: ProjectDisplay[];
   onOpenConversation: (conversationId: string) => void;
   onOpenNote: (noteId: string) => void;
   onOpenProject: (projectId: string, messageId: string) => void;
@@ -22,7 +20,6 @@ export function CalendarDay({
   isCurrentMonth,
   isToday,
   selectedProjects,
-  projects,
   onOpenConversation,
   onOpenNote,
   onOpenProject,
@@ -114,7 +111,6 @@ export function CalendarDay({
           date={date}
           activity={activity}
           anchorRef={dayRef}
-          projects={projects}
           onOpenConversation={onOpenConversation}
           onOpenNote={onOpenNote}
           onOpenProject={onOpenProject}

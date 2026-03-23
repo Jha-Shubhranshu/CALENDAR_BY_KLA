@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { MoreVertical, FolderPlus, FolderMinus, Tag, Pin, Trash2, Copy, Bot, User, Sparkles } from 'lucide-react';
-import type { MessageDisplay, MessageRole, NotebookSource } from '../typesOG/conversation.types';
+import { MoreVertical, FolderPlus, FolderMinus, Trash2, Copy, Bot, Sparkles } from 'lucide-react';
+import type { MessageDisplay, NotebookSource } from '../typesOG/conversation.types';
 import { useClickOutside } from '../hooksOG/Intelligenceeffects/useClickOutside';
 
 interface MessageProps {

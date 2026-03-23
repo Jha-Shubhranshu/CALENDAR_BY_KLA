@@ -36,7 +36,7 @@ const Authsignup = ({ onAuthSuccess }: AuthProps) => {
       email: email,
     };
 
-      const res = await fetch('http://127.0.0.1:8004/api/v1/auth/signup', {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/signup`, {
         method: 'POST',
         headers: {
         'Content-Type': 'application/json',  // Important!

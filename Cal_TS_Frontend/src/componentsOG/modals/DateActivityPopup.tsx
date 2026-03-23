@@ -2,14 +2,12 @@ import React, { useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { MessageSquare, FileText, FolderKanban, ChevronRight } from 'lucide-react';
 import type { DateActivity } from '../../api/calendarAPIAxios';
-import type { ProjectDisplay } from '../../typesOG/project.types';
 import { useClickOutside } from '../../hooksOG/Intelligenceeffects/useClickOutside';
 
 interface DateActivityPopupProps {
   date: Date;
   activity: DateActivity;
-  anchorRef: React.RefObject<HTMLDivElement>;
-  projects: ProjectDisplay[];
+  anchorRef: React.RefObject<HTMLDivElement | null>;
   onOpenConversation: (conversationId: string) => void;
   onOpenNote: (noteId: string) => void;
   onOpenProject: (projectId: string, messageId: string) => void;
@@ -20,7 +18,6 @@ export function DateActivityPopup({
   date,
   activity,
   anchorRef,
-  projects,
   onOpenConversation,
   onOpenNote,
   onOpenProject,
@@ -37,7 +34,6 @@ export function DateActivityPopup({
 
     const rect = anchorRef.current.getBoundingClientRect();
     const popupWidth = 280;
-    const popupMaxHeight = 400;
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
 

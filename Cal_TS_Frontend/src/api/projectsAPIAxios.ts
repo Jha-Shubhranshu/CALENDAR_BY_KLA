@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { ProjectDisplay, ProjectWithMessages } from '../typesOG/project.types';
 
-const BASE_URL = 'http://localhost:8004/api/v1/projects';
+const BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api/v1/projects`;
 
 export async function getAllProjects(
   limit: number = 50,

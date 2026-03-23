@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Sidebar } from '../componentsOG/Sidebar';
 import { Header } from '../componentsOG/Header';
 import { Calendar } from '../componentsOG/Calendar';
@@ -110,7 +110,7 @@ export function CalendarPage() {
       await loadProjects();
 
       // If currently viewing this project, refresh it
-      if (openChatWindow?.type === 'project' && openChatWindow.data.project_id === projectId) {
+      if (openChatWindow?.type === 'project' && openChatWindow.data.id === projectId) {
         const updated = await getProject(projectId);
         setOpenChatWindow({ 
           type: 'project', 
@@ -156,7 +156,7 @@ export function CalendarPage() {
 
   const handleCreateProject = async (data: { title: string; description?: string; color: string }) => {
     try {
-      const newProject = await createProject(data);
+      await createProject(data);
       await loadProjects();
       setShowCreateProjectModal(false);
       
@@ -203,7 +203,7 @@ export function CalendarPage() {
 
 
   // Carousel navigation for notes
-  const chronologicalNotes = React.useMemo(() => {
+  const chronologicalNotes = useMemo(() => {
     return [...notes].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [notes]);
 
@@ -257,7 +257,7 @@ export function CalendarPage() {
           onSelectNotes={() => window.location.href = '/note'} // Navigate to notes
           projects={projects}
           selectedProjectId={null}
-          onSelectProject={handleOpenProject}
+          onSelectProject={(projectId) => handleOpenProject(projectId, '')}
           onCreateProject={() => {}} // Could open create modal
           onSelectNotebook={handleSelectNotebook}
         />
@@ -318,9 +318,9 @@ export function CalendarPage() {
           onDelete={deleteNote}  
           onTogglePin={togglePin}  
           labels={labels}  
-          onAddLabelToNote={() => {}}  
-          onRemoveLabelFromNote={() => {}}  
-          onCreateLabel={() => {}} 
+          onAddLabelToNote={async () => {}}  
+          onRemoveLabelFromNote={async () => {}}  
+          onCreateLabel={async () => {}} 
           canNavigateLeft={canNavigateLeft()}    
           canNavigateRight={canNavigateRight()}  
           onNavigateLeft={() => navigateNote('left')}   

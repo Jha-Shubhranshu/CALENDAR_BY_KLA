@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Pin, Palette, Bell, User, Image, MoreVertical, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import {type NoteCardDisplay } from '../../typesOG/note.types';
 import { ColourPicker } from '../ColorPicker';

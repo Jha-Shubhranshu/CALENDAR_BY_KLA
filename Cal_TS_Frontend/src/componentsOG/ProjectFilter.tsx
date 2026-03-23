@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { ChevronDown, FolderKanban, X, Check } from 'lucide-react';
 import type { ProjectDisplay } from '../typesOG/project.types';
 import { useClickOutside } from '../hooksOG/Intelligenceeffects/useClickOutside';
@@ -35,7 +35,6 @@ export function ProjectFilter({
   };
 
   const selectedCount = selectedProjects.length;
-  const allSelected = selectedCount === projects.length;
 
   return (
     <div className="relative" ref={dropdownRef}>

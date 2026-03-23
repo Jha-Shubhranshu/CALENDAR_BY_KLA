@@ -1,5 +1,3 @@
-import { COLORS } from "../constants/colorsOG";
-
 export interface Note {
   title?: string;
   content: string;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CalendarDay } from './CalendarDay';
 import { ProjectFilter } from './ProjectFilter';
@@ -20,7 +20,7 @@ export function Calendar({
 }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
-  const { calendarData, loading, loadCalendarData, getActivityForDate } = useCalendar();
+  const { loading, loadCalendarData, getActivityForDate } = useCalendar();
 
 // Get start and end of current month
 const monthStart = useMemo(() => {
@@ -152,7 +152,6 @@ const monthEnd = useMemo(() => {
                   isCurrentMonth={isCurrentMonth}
                   isToday={isToday}
                   selectedProjects={selectedProjects}
-                  projects={projects}
                   onOpenConversation={onOpenConversation}
                   onOpenNote={onOpenNote}
                   onOpenProject={onOpenProject}

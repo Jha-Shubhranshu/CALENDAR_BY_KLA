@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { X, FolderKanban, Plus, Check } from 'lucide-react';
 import type { ProjectDisplay } from '../../typesOG/project.types';
 import { useClickOutside } from '../../hooksOG/Intelligenceeffects/useClickOutside';
