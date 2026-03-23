@@ -26,6 +26,8 @@ engine: AsyncEngine = create_async_engine(
 logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
 async def init_db() -> None:
+
+    print(f"Connecting to: {Config.DATABASE_URL}")  # ← add temporarily
     """Initialize database by creating all tables."""
     # Import ALL models to register them with SQLModel metadata
     from Cal_Backend.db.models import (
