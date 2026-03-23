@@ -6,6 +6,8 @@ from Cal_Backend.Label.route import label_router
 from Cal_Backend.Conversations.route import conversation_router
 from Cal_Backend.Project.route import project_router
 from Cal_Backend.Calendar.route import calendar_router
+import traceback
+from fastapi.responses import PlainTextResponse
 
 # from src.books.routes import book_router
 # from src.reviews.routes import review_router
@@ -55,6 +57,9 @@ app = FastAPI(
 
 register_middleware(app)
 
+@app.exception_handler(Exception)
+async def debug_exception_handler(request, exc):
+    return PlainTextResponse(traceback.format_exc(), status_code=500)
 
 
 
