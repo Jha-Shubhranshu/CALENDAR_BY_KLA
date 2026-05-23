@@ -163,3 +163,29 @@ async def create_conversation(
         "updated_at": conversation.updated_at,
         "messages": []
     }
+
+# ✅ Delete a conversation
+@conversation_router.delete("/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_conversation(
+    conversation_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_userC)
+):
+    """Delete a conversation and all its associated notes"""
+    from sqlalchemy import select
+    
+    query = select(Conversation).where(
+        Conversation.id == conversation_id,
+        Conversation.user_id == current_user.id
+    )
+    
+    result = await session.execute(query)
+    conversation = result.scalar_one_or_none()
+    
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    await session.delete(conversation)
+    await session.commit()
+    
+    return None

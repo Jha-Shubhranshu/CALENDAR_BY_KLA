@@ -34,7 +34,7 @@ class UserCreateModel(BaseModel):
     last_name: str =Field(max_length=25)
     username: str = Field(max_length=18)
     email: str = Field(max_length=40)
-    password: str = Field(max_length=16)
+    password: str = Field(max_length=128)
     
     
 

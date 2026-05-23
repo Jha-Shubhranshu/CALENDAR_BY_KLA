@@ -18,7 +18,7 @@ import { ProjectSelectorModal } from '../componentsOG/modals/ProjectSelectorModa
 import { CreateProjectModal } from '../componentsOG/modals/CreateProjectModal';
 import type { NotebookSource, ConversationWithMessages } from '../typesOG/conversation.types';
 import type { ProjectWithMessages } from '../typesOG/project.types';
-import { getConversation } from '../api/conversationsAPIAxios';
+import { getConversation, deleteConversation } from '../api/conversationsAPIAxios';
 import { getProject, addMessageToProject, removeMessageFromProject } from '../api/projectsAPIAxios';
 
 export function NotesPage() {
@@ -150,6 +150,20 @@ export function NotesPage() {
       console.log('✅ Project deleted');
     } catch (error) {
       console.error('Error deleting project:', error);
+    }
+  };
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    try {
+      await deleteConversation(conversationId);
+      setOpenChatWindow(null);
+      // We don't need to manually refresh the sidebar here because the 
+      // ConversationsSidebar handles its own state, and it will refresh 
+      // when reopened or we could add a way to trigger a refresh if needed.
+      // But usually closing the chat window is enough for now.
+      console.log('✅ Conversation deleted');
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
     }
   };
 
@@ -413,6 +427,7 @@ export function NotesPage() {
               onRemoveFromProject={openChatWindow.type === 'project' ? handleRemoveFromProject : undefined}
               onNavigateToOriginal={handleNavigateToOriginal}
               onDeleteProject={openChatWindow.type === 'project' ? () => handleDeleteProject(openChatWindow.data.id) : undefined}
+              onDeleteConversation={openChatWindow.type === 'conversation' ? () => handleDeleteConversation(openChatWindow.data.id) : undefined}
               loading={loadingChatWindow}
               isProject={openChatWindow.type === 'project'}
               scrollToMessageId={openChatWindow.scrollToMessageId}

@@ -23,19 +23,77 @@ import logging
 
 
 def register_middleware(app: FastAPI):
-    
+    import os
+    env = os.getenv("ENVIRONMENT", "production").lower()
+
+    # Define origins
+    origins = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "https://claude.ai",
+        "https://calendar-by-kla.vercel.app",
+        "https://calendar-by-kla-shubham.vercel.app",
+        "https://dtdjg3wim5ilk.cloudfront.net",
+    ]
+
+    # CORS MUST BE FIRST
+    app.add_middleware( 
+        CORSMiddleware,
+        allow_origins=["*"], # Always allow * for dev to fix chrome-extension:// blocking
+        allow_origin_regex=r"https://calendar-by-kla.*\.vercel\.app",
+        allow_methods=["*"],
+        allow_headers=["*"],
+        allow_credentials=True,
+        expose_headers=["*"]
+    )
+
+    @app.middleware('http')
+    async def debug_pre_cors_logging(request: Request, call_next):
+        """
+        Ultra-verbose logging that runs BEFORE everything else.
+        Prints directly to console using print() to bypass any logging config issues.
+        """
+        print("\n" + "="*80)
+        print(f"DEBUG LOG: {request.method} {request.url.path}")
+        print(f"Origin: {request.headers.get('origin')}")
+        print(f"Access-Control-Request-Method: {request.headers.get('access-control-request-method')}")
+        print(f"Access-Control-Request-Headers: {request.headers.get('access-control-request-headers')}")
+        print("All Headers:")
+        for k, v in request.headers.items():
+            print(f"  {k}: {v}")
+        print("="*80 + "\n")
+        
+        try:
+            response = await call_next(request)
+            print(f"DEBUG RESPONSE: {response.status_code} for {request.url.path}")
+            return response
+        except Exception as e:
+            print(f"DEBUG ERROR in middleware chain: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise e
+
     @app.middleware('http')
     async def custom_logging(request: Request, call_next):
         start_time = time.time()
         
-        response = await call_next(request)
-        processing_time = time.time() - start_time
+        # Log request details for debugging
+        logger.info(f"Incoming Request: {request.method} {request.url.path}")
+        logger.info(f"Headers: {dict(request.headers)}")
         
+        try:
+            response = await call_next(request)
+        except Exception as e:
+            logger.error(f"Middleware Error: {str(e)}", exc_info=True)
+            raise e
+
+        processing_time = time.time() - start_time
         client_host = request.client.host if request.client else "unknown"
         client_port = request.client.port if request.client else "0"
         
         message = f"{client_host}:{client_port}-{request.method}-{request.url.path}-{response.status_code} completed after {processing_time}s"
-        
         print(message)
         return response
     
@@ -45,14 +103,16 @@ def register_middleware(app: FastAPI):
         public_paths = [
             "/api/v1/auth/signup",
             "/api/v1/auth/login",
-            "http://localhost:8004/api/v1/auth/login", 
-            # "http://localhost:8004/api/v1/ArjunJson/api/import/json", 
-            "/api/v1/ArjunJson/api/import/json",  # Add this for testing
+            "/api/v1/ArjunJson/api/import/json",
             "/api/v1/auth/register",
+            "/api/v1/ArjunJson/extension/ingest", # Allow extension preflight/requests if needed, though TokenBearer handles auth
             "/docs",
             "/redoc",
             "/openapi.json"
         ]
+        
+        # Normalize path by removing trailing slash for comparison
+        path = request.url.path.rstrip('/') if request.url.path != '/' else '/'
         
         # IMPORTANT: Allow all OPTIONS requests (preflight) to pass through
         if request.method == "OPTIONS":
@@ -60,7 +120,7 @@ def register_middleware(app: FastAPI):
             return response
         
         # Check if the current path is in public paths
-        if request.url.path in public_paths:
+        if path in [p.rstrip('/') for p in public_paths]:
             response = await call_next(request)
             return response
         
@@ -81,26 +141,6 @@ def register_middleware(app: FastAPI):
         response = await call_next(request)
         return response
 
-    origins = [
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "https://calendar-by-kla.vercel.app",
-        "https://calendar-by-kla-shubham.vercel.app",
-    ]
-
-    # Add CORS middleware FIRST (which means it wraps everything else)
-    app.add_middleware( 
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_origin_regex=r"https://calendar-by-kla.*\.vercel\.app",
-        allow_methods=["*"],
-        allow_headers=["*"],
-        allow_credentials=True,
-        expose_headers=["*"]
-    )
-    
     # app.add_middleware(
     #     TrustedHostMiddleware,
     #     allowed_hosts=["localhost", "127.0.0.1", "bookly-api-dc03.onrender.com", "0.0.0.0", "calendar-by-kla.onrender.com", "*.onrender.com"],

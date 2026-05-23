@@ -51,11 +51,31 @@ export function CalendarPage() {
     setSelectedNotebookSource(null);
   };
 
-  const handleOpenConversation = async (conversationId: string) => {
+  const handleOpenConversation = async (conversationId: string, targetDate?: Date) => {
     try {
       setLoadingChatWindow(true);
       const conversation = await getConversation(conversationId);
-      setOpenChatWindow({ type: 'conversation', data: conversation });
+      
+      let scrollToMessageId: string | undefined;
+      
+      if (targetDate) {
+        // Find the first message of that day
+        const targetDateStr = targetDate.toISOString().split('T')[0];
+        const firstMessageOfDay = conversation.messages.find(m => {
+          const mDate = new Date(m.timestamp).toISOString().split('T')[0];
+          return mDate === targetDateStr;
+        });
+        
+        if (firstMessageOfDay) {
+          scrollToMessageId = firstMessageOfDay.id;
+        }
+      }
+
+      setOpenChatWindow({ 
+        type: 'conversation', 
+        data: conversation,
+        scrollToMessageId: scrollToMessageId
+      });
       setSelectedNotebookSource(null); // Optional: close secondary sidebar when chat opens, or keep it. NotesPage closes it.
     } catch (error) {
       console.error('Error opening conversation:', error);
@@ -256,9 +276,9 @@ export function CalendarPage() {
           onSelectLabel={() => {}}  
           onSelectNotes={() => window.location.href = '/note'} // Navigate to notes
           projects={projects}
-          selectedProjectId={null}
+          selectedProjectId={openChatWindow?.type === 'project' ? openChatWindow.data.id : null}
           onSelectProject={(projectId) => handleOpenProject(projectId, '')}
-          onCreateProject={() => {}} // Could open create modal
+          onCreateProject={() => setShowCreateProjectModal(true)}
           onSelectNotebook={handleSelectNotebook}
         />
 

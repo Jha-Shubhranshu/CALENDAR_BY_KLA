@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { X, Send, ArrowLeft, Trash2 } from 'lucide-react';
 import type { MessageDisplay, NotebookSource } from '../typesOG/conversation.types';
 import { Message } from './Message';
@@ -13,6 +13,7 @@ interface ChatWindowProps {
   onNavigateToOriginal?: (conversationId: string, messageId: string) => void;
   onSendMessage?: (content: string) => void;
   onDeleteProject?: () => void;
+  onDeleteConversation?: () => void;
   loading?: boolean;
   isProject?: boolean;
   scrollToMessageId?: string;
@@ -28,6 +29,7 @@ export function ChatWindow({
   onNavigateToOriginal,
   onSendMessage,
   onDeleteProject,
+  onDeleteConversation,
   loading = false,
   isProject = false,
   scrollToMessageId
@@ -57,16 +59,26 @@ export function ChatWindow({
         block: 'center' 
       });
       
-      // Highlight the message briefly
+      // Highlight the message briefly with a glow effect
       const element = messageRefs.current[scrollToMessageId];
       if (element) {
-        element.classList.add('ring-4', 'ring-blue-500', 'ring-opacity-50');
-        setTimeout(() => {
-          element.classList.remove('ring-4', 'ring-blue-500', 'ring-opacity-50');
-        }, 2000);
+        // Only apply glow if it's not a manual/google_keep source (general notes)
+        // OR if it's specifically requested via scrollToMessageId in a conversation
+        if (source === 'claude' || source === 'chatgpt') {
+          element.classList.add('animate-glow-brief');
+          setTimeout(() => {
+            element.classList.remove('animate-glow-brief');
+          }, 500); // 0.5 seconds as requested
+        } else {
+          // Default highlight for other types if needed, or just skip
+          element.classList.add('ring-2', 'ring-blue-400', 'ring-opacity-50');
+          setTimeout(() => {
+            element.classList.remove('ring-2', 'ring-blue-400', 'ring-opacity-50');
+          }, 2000);
+        }
       }
     }
-  }, [scrollToMessageId]);
+  }, [scrollToMessageId, source]);
 
 
   const handleSend = () => {
@@ -109,10 +121,29 @@ export function ChatWindow({
     }
   };
 
+  // ✅ Get earliest message date
+  const earliestDate = useMemo(() => {
+    if (!messages || messages.length === 0) return null;
+    
+    // Sort by timestamp to find the earliest
+    const sorted = [...messages].sort((a, b) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+    
+    return new Date(sorted[0].timestamp).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }, [messages]);
+
   return (
     <div className={`flex flex-col h-full ${getMainBackground()}`}>
       {/* Header */}
-      <div className={`${getHeaderStyle()} p-4 flex items-center justify-between shadow-sm z-10 shrink-0`}>
+      <div className={`${getHeaderStyle()} p-4 grid grid-cols-3 items-center shadow-sm z-10 shrink-0`}>
+        {/* Left: Back button and Metadata */}
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
@@ -120,22 +151,46 @@ export function ChatWindow({
           >
             <ArrowLeft size={20} />
           </button>
-          <div>
-            <h2 className={`text-lg font-semibold truncate max-w-md ${source === 'claude' ? 'font-serif' : ''}`} title={title}>
-              {title || 'Untitled Conversation'}
-            </h2>
+          <div className="flex flex-col">
             <p className="text-xs opacity-70">
               {messages.length} message{messages.length !== 1 ? 's' : ''}
               {isProject && ' • Project Timeline'}
             </p>
+            {earliestDate && (
+              <p className="text-[10px] opacity-60 font-medium mt-0.5">
+                Started: {earliestDate}
+              </p>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Center: Title */}
+        <div className="text-center">
+          <h2 className={`text-lg font-semibold truncate max-w-md mx-auto ${source === 'claude' ? 'font-serif' : ''}`} title={title}>
+            {title || 'Untitled Conversation'}
+          </h2>
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center justify-end gap-2">
           {isProject && onDeleteProject && (
             <button
               onClick={handleDelete}
               className="p-2 hover:bg-red-500 hover:text-white hover:bg-opacity-80 rounded-full transition text-red-500"
               title="Delete Project"
+            >
+              <Trash2 size={20} />
+            </button>
+          )}
+          {!isProject && onDeleteConversation && (
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to delete this conversation?')) {
+                  onDeleteConversation();
+                }
+              }}
+              className="p-2 hover:bg-red-500 hover:text-white hover:bg-opacity-80 rounded-full transition text-red-500 mr-2"
+              title="Delete Conversation"
             >
               <Trash2 size={20} />
             </button>

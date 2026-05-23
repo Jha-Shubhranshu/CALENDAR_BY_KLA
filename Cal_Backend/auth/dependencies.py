@@ -119,12 +119,13 @@ class CookieTokenBearer:
         """Override this method in child classes to verify token type"""
         raise NotImplementedError("Please override this method in child classes")
 
-class AccessTokenBearerC(CookieTokenBearer):
+class AccessTokenBearerC(TokenBearer):
     """
-    Dependency for extracting and validating access tokens from cookies
+    Dependency for extracting and validating access tokens from both cookies and headers
+    Priority: Cookie > Header
     """
     
-    def __init__(self, auto_error: bool = True):  # Changed to True
+    def __init__(self, auto_error: bool = True):
         super().__init__(cookie_name="access_token", auto_error=auto_error)
     
     def verify_token_data(self, token_data: dict) -> None: 
@@ -132,9 +133,9 @@ class AccessTokenBearerC(CookieTokenBearer):
         if token_data and token_data.get('refresh', False):
             raise AccessTokenRequired()
 
-class RefreshTokenBearer(CookieTokenBearer):
+class RefreshTokenBearer(TokenBearer):
     """
-    Dependency for extracting and validating refresh tokens from cookies
+    Dependency for extracting and validating refresh tokens from both cookies and headers
     """
     
     def __init__(self, auto_error: bool = True):

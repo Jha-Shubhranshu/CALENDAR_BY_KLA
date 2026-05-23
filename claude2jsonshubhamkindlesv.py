@@ -3,8 +3,8 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 
 # Configuration
-input_file = r"C:\Users\shubh\Desktop\desktop\Data Duta\Claude Exports\shubhamkindlesv Exports\shubhamkindlesv data-2026-02-06-17-28-19-batch-0000\conversations.json"
-output_file = r"C:\Users\shubh\Desktop\Calendar_By_Kla\simplified_claudeshubhamkindlesv.json"
+input_file = r"C:\Users\shubh\Desktop\desktop\Data Duta\Claude Exports\shubhamkindlesv Exports\shubhamkindlesv data-2026-03-31-12-22-35-batch-0000\conversations.json"
+output_file = r"C:\Users\shubh\Desktop\Calendar_By_Kla\simplified_claudeshubhamkindlesv_010426.json"
 
 def parse_claude_export(data: List[Dict]) -> List[Dict]:
     """

@@ -22,7 +22,7 @@ class UserService:
         user_data_dict = u_data.model_dump()
         
         new_user = User(
-            **user_data_dict
+            **{k: v for k, v in user_data_dict.items() if k != 'password'}
         )
         
         new_user.password_hash = generate_passwd_hash(user_data_dict['password'])
@@ -30,5 +30,6 @@ class UserService:
         
         session.add(new_user)
         await session.commit()
+        await session.refresh(new_user)
         
         return new_user

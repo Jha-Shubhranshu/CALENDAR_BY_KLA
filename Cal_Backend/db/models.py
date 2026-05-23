@@ -22,6 +22,13 @@ from sqlalchemy import text, UniqueConstraint
 
 
 # Enums
+class ImportJobStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class NotebookSource(str, Enum):
     CLAUDE = "claude"
     CHATGPT = "chatgpt"
@@ -112,6 +119,7 @@ class User(SQLModel, table=True):
     projects: List["Project"] = Relationship(back_populates="user")
     labels: List["Label"] = Relationship(back_populates="user")
     media: List["Media"] = Relationship(back_populates="user")
+    import_jobs: List["ImportJob"] = Relationship(back_populates="user")
 
 
 class Conversation(SQLModel, table=True):
@@ -133,7 +141,7 @@ class Conversation(SQLModel, table=True):
     account: str
     
     # Original import data
-    original_conversation_id: str = Field(nullable=True)  # ID from source platform
+    original_conversation_id: str = Field(nullable=True, index=True)  # ID from source platform
     import_date: datetime = Field(
         sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False),
         default_factory=lambda: datetime.now(timezone.utc)
@@ -363,12 +371,37 @@ class ChecklistItem(SQLModel, table=True):
     
     # Relationships
     note: Note = Relationship(back_populates="checklist_items")
-    
-    
-    
-    
-    
-    
+
+
+class ImportJob(SQLModel, table=True):
+    __tablename__ = "import_jobs"
+
+    id: UUID = Field(
+        default_factory=uuid.uuid4,
+        sa_column=Column(pg.UUID, nullable=False, primary_key=True)
+    )
+    user_id: UUID = Field(foreign_key="users.id", ondelete="CASCADE", index=True)
+    status: ImportJobStatus = Field(
+        default=ImportJobStatus.PENDING,
+        sa_column=Column(pg.VARCHAR, nullable=False, server_default="pending")
+    )
+    job_type: str = Field(nullable=False)
+    s3_key: Optional[str] = Field(default=None)
+    total_items: int = Field(default=0)
+    processed_items: int = Field(default=0)
+    result_stats: dict = Field(default={}, sa_column=Column(JSON))
+    error_message: Optional[str] = Field(default=None)
+    created_at: datetime = Field(
+        sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False),
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False),
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+    user: "User" = Relationship(back_populates="import_jobs")
+
     
     
     

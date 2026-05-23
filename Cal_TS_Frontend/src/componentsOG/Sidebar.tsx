@@ -393,6 +393,7 @@
 
 
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Lightbulb, Bell, Tag, FolderKanban, BookOpen, Plus, ChevronRight, ChevronDown, CalendarIcon } from 'lucide-react';
 import type { LabelDisplay } from '../typesOG/note.types';
 import type { ProjectDisplay } from '../typesOG/project.types';
@@ -425,6 +426,9 @@ export function Sidebar({
     onClose
 }: SidebarPropsSchema) {
     const [notebooksExpanded, setNotebooksExpanded] = useState(false);
+    const location = useLocation();
+    const isCalendarPage = location.pathname === '/calendar' && selectedProjectId === null;
+    const isNotesPage = location.pathname === '/note' && selectedProjectId === null && selectedLabelId === null;
 
     return (
         <>
@@ -453,19 +457,24 @@ export function Sidebar({
                             if (window.innerWidth < 1024) onClose?.();
                         }}
                         className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-100 transition-colors rounded-r-full mr-2 ${
-                            selectedLabelId === null && selectedProjectId === null ? 'bg-yellow-50' : ''
+                            isNotesPage && selectedLabelId === null && selectedProjectId === null ? 'bg-yellow-50' : ''
                         }`}
                     >
                         <Lightbulb 
                             size={20} 
-                            className={selectedLabelId === null && selectedProjectId === null ? 'text-gray-900' : 'text-gray-600'} 
+                            className={isNotesPage && selectedLabelId === null && selectedProjectId === null ? 'text-gray-900' : 'text-gray-600'} 
                         />
                         <span className="text-sm font-medium text-gray-900">Notes</span>
                     </button>
 
-                    <button  onClick={() => window.location.href = '/calendar'} className="w-full flex items-center gap-4 px-4 py-3 hover:bg-gray-100 transition-colors">
-                      <CalendarIcon size={20} className="text-gray-600" />
-                      <span className="text-sm font-medium text-gray-700">Calendar</span>
+                    <button 
+                        onClick={() => window.location.href = '/calendar'} 
+                        className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-100 transition-colors rounded-r-full mr-2 ${
+                            isCalendarPage ? 'bg-blue-50' : ''
+                        }`}
+                    >
+                      <CalendarIcon size={20} className={isCalendarPage ? 'text-blue-600' : 'text-gray-600'} />
+                      <span className={`text-sm font-medium ${isCalendarPage ? 'text-blue-600' : 'text-gray-900'}`}>Calendar</span>
                     </button>
 
 

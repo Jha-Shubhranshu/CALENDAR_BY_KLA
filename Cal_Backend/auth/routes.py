@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from datetime import timedelta, datetime
 from .dependencies import RefreshTokenBearer, AccessTokenBearerC, get_current_userC, RoleChecker
 from Cal_Backend.db.redis import add_jti_to_blocklist
+from Cal_Backend.db.models import User
 # from src.celery_tasks import send_email
 
 
@@ -73,7 +74,6 @@ async def login_users(U_Creds: UserLoginModel, session: AsyncSession = Depends(g
                     "user": {
                         "email": user.email,
                         "id": str(user.id),
-                        "Accesstoken for dev":access_token               # this is only a jugaad, strictly for development purposes only fix the auth flow, or the app will be compromised.
                     }
                 }
             )
@@ -120,6 +120,22 @@ async def get_new_access_token(token_details: dict = Depends(RefreshTokenBearer(
         return response
         
     raise InvalidToken()
+
+@auth_router.get('/api_key')
+async def get_permanent_api_key(user: User = Depends(get_current_userC)):
+    """
+    Generate a long-lived API key (10 years) for use in external extensions.
+    """
+    api_key = create_access_tokens(
+        user_data={
+            'email': user.email,
+            'user_uid': str(user.id),
+            "role": user.role,
+        },
+        expiry=timedelta(days=3650) # 10 years
+    )
+    return {"api_key": api_key}
+
 
 @auth_router.get('/me', response_model=UserCreatedModel)
 async def get_current_userrrr(user=Depends(get_current_userC), _: bool = Depends(User_role_checker)):

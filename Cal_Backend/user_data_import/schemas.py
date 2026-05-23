@@ -41,6 +41,33 @@ class ImportStatistics(BaseModel):
     errors: List[Dict[str, Any]] = []
 
 
+class ExtensionMessageSchema(BaseModel):
+    """Schema for a message sent from the browser extension"""
+    role: str
+    content: str
+    timestamp: Optional[datetime] = None
+    images: Optional[List[Dict[str, Any]]] = Field(default_factory=list) # Support for base64 images
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ExtensionConversationSchema(BaseModel):
+    """Schema for the nested conversation object in extension payload"""
+    conversation_id: Optional[str] = None
+    title: str
+    url: Optional[str] = None
+    message_count: int
+    messages: List[ExtensionMessageSchema]
+
+
+class ExtensionIngestSchema(BaseModel):
+    """Schema for conversation data sent from the browser extension"""
+    source: str
+    scraped_at: datetime
+    account_email: str
+    conversation: ExtensionConversationSchema
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
 class ImportResponse(BaseModel):
     """Schema for import response"""
     success: bool

@@ -1,3 +1,5 @@
+# uvicorn __init__:app --host 127.0.0.1 --port 8000 --reload       
+
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from Cal_Backend.auth.routes import auth_router
@@ -15,7 +17,6 @@ from fastapi.responses import PlainTextResponse
 from .errors import register_all_errors
 from .middleware import register_middleware
 from Cal_Backend.db.main import init_db
-from .middleware import register_middleware
 
 
 from Cal_Backend.user_data_import.route import Json_router

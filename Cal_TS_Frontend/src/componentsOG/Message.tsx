@@ -154,6 +154,11 @@ export function Message({
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
 
+          {/* Timestamp */}
+          <div className={`mt-1 text-[10px] text-gray-400 ${isUser ? 'text-right' : 'text-left'}`}>
+            {new Date(message.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </div>
+
           {/* Action Trigger */}
           {showActions && (
             <button
@@ -205,6 +210,11 @@ export function Message({
         >
           <div className="prose prose-sm max-w-none prose-p:leading-relaxed font-serif prose-headings:font-serif prose-code:font-mono prose-pre:bg-[#f4f4f3] prose-pre:text-gray-900 prose-code:text-[#c45533] prose-code:bg-[#f0eee6] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none [&>ul]:list-disc [&>ol]:list-decimal">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+          </div>
+
+          {/* Timestamp */}
+          <div className={`mt-1 text-[10px] text-gray-500 ${isUser ? 'text-right' : 'text-left'}`}>
+            {new Date(message.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </div>
 
           {/* Action Trigger */}
@@ -298,13 +308,15 @@ export function Message({
             {getRoleLabel()}
             {renderSourceInfo()}
           </span>
-          <span className="text-xs text-gray-400">
-            {new Date(message.timestamp).toLocaleString()}
-          </span>
         </div>
 
         <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-gray-100 prose-pre:text-gray-800 prose-code:text-blue-600 prose-code:before:content-none prose-code:after:content-none [&>ul]:list-disc [&>ol]:list-decimal break-words prose-pre:whitespace-pre-wrap overflow-x-auto">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
+        </div>
+
+        {/* Timestamp at bottom */}
+        <div className="mt-2 text-[10px] text-gray-400">
+          {new Date(message.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
         </div>
 
         {showActions && (

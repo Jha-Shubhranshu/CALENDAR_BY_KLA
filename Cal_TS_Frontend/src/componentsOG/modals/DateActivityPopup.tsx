@@ -8,7 +8,7 @@ interface DateActivityPopupProps {
   date: Date;
   activity: DateActivity;
   anchorRef: React.RefObject<HTMLDivElement | null>;
-  onOpenConversation: (conversationId: string) => void;
+  onOpenConversation: (conversationId: string, date?: Date) => void;
   onOpenNote: (noteId: string) => void;
   onOpenProject: (projectId: string, messageId: string) => void;
   onClose: () => void;
@@ -45,17 +45,17 @@ export function DateActivityPopup({
     let left: number;
     if (isLeftHalf) {
       // Try right
-      left = rect.right + 8;
+      left = rect.right;
       // Fallback if overflows right
       if (left + popupWidth > windowWidth) {
-        left = rect.left - popupWidth - 8;
+        left = rect.left - popupWidth;
       }
     } else {
       // Try left
-      left = rect.left - popupWidth - 8;
+      left = rect.left - popupWidth;
       // Fallback if overflows left
       if (left < 0) {
-        left = rect.right + 8;
+        left = rect.right;
       }
     }
 
@@ -157,7 +157,7 @@ export function DateActivityPopup({
                     <button
                       key={conv.id}
                       onClick={() => {
-                        onOpenConversation(conv.id);
+                        onOpenConversation(conv.id, date);
                         onClose();
                       }}
                       className="w-full text-left px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded truncate"
@@ -200,7 +200,7 @@ export function DateActivityPopup({
                     <button
                       key={conv.id}
                       onClick={() => {
-                        onOpenConversation(conv.id);
+                        onOpenConversation(conv.id, date);
                         onClose();
                       }}
                       className="w-full text-left px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded truncate"

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\shubh\\\\Desktop\\\\Calendar_By_Kla\" -Recurse -Force)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-Table FullName)",
+      "Bash(python -c ' *)",
+      "Bash(python -m venv .venv)",
+      "Bash(.venvScriptspython.exe -c ' *)",
+      "Bash(python3 -c \"import fastapi\")",
+      "PowerShell(cd \"C:\\\\Users\\\\shubh\\\\Desktop\\\\Calendar_By_Kla\"; $py = Get-ChildItem \"$env:LOCALAPPDATA\\\\Programs\\\\Python\" -Filter \"python.exe\" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName; Write-Host \"Found: $py\"; if \\($py\\) { & $py --version })"
+    ]
+  }
+}

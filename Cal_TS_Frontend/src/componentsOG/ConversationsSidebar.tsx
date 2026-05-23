@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { X, MessageSquare, ChevronDown, Check } from 'lucide-react';
+import { X, MessageSquare, ChevronDown, Check, Trash2, Loader2 } from 'lucide-react';
 import type { NotebookSource } from '../typesOG/conversation.types';
 import { useConversations } from '../hooksOG/useConversations';
 import { useClickOutside } from '../hooksOG/Intelligenceeffects/useClickOutside';
@@ -15,16 +15,12 @@ export function ConversationsSidebar({
   onClose, 
   onSelectConversation 
 }: ConversationsSidebarProps) {
-  const { conversations, loading, loadConversations } = useConversations(source);
+  const { conversations, loading, deletingId, loadConversations, removeConversation } = useConversations(source);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useClickOutside(dropdownRef, () => setIsAccountDropdownOpen(false));
-
-  useEffect(() => {
-    loadConversations();
-  }, [loadConversations, source]);
 
   // Extract unique accounts
   const availableAccounts = useMemo(() => {
@@ -165,25 +161,47 @@ export function ConversationsSidebar({
         ) : filteredConversations.length > 0 ? (
           <div className="space-y-2">
             {filteredConversations.map((convo) => (
-              <button
+              <div
                 key={convo.id}
-                onClick={() => onSelectConversation(convo.id)}
-                className="w-full text-left p-3 hover:bg-gray-100 rounded-lg transition group"
+                className="w-full flex items-start gap-2 p-3 hover:bg-gray-100 rounded-lg transition group relative"
               >
-                <div className="flex justify-between items-start">
-                  <h3 className="font-medium text-gray-800 truncate group-hover:text-blue-600 flex-1">
-                    {convo.title}
-                  </h3>
-                  {convo.account && (
-                    <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded ml-2 shrink-0">
-                      {convo.account}
-                    </span>
+                <button
+                  onClick={() => onSelectConversation(convo.id)}
+                  className="flex-1 text-left"
+                >
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-medium text-gray-800 truncate group-hover:text-blue-600 flex-1">
+                      {convo.title}
+                    </h3>
+                    {convo.account && (
+                      <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded ml-2 shrink-0">
+                        {convo.account}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(convo.created_at).toLocaleDateString()}
+                  </p>
+                </button>
+                
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm('Are you sure you want to delete this conversation?')) {
+                      removeConversation(convo.id);
+                    }
+                  }}
+                  disabled={deletingId === convo.id}
+                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition disabled:opacity-50"
+                  title="Delete conversation"
+                >
+                  {deletingId === convo.id ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={16} />
                   )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {new Date(convo.updated_at).toLocaleDateString()}
-                </p>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         ) : (

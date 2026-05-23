@@ -9,7 +9,7 @@ interface CalendarDayProps {
   isCurrentMonth: boolean;
   isToday: boolean;
   selectedProjects: string[];
-  onOpenConversation: (conversationId: string) => void;
+  onOpenConversation: (conversationId: string, date?: Date) => void;
   onOpenNote: (noteId: string) => void;
   onOpenProject: (projectId: string, messageId: string) => void;
 }
@@ -26,15 +26,32 @@ export function CalendarDay({
 }: CalendarDayProps) {
   const [showPopup, setShowPopup] = useState(false);
   const dayRef = useRef<HTMLDivElement>(null);
+  const timeoutRef = useRef<any>(null);
 
-  // Check if this day has activity from selected projects
-  const hasSelectedProjectActivity = activity?.projects.some(p => 
-    selectedProjects.includes(p.project_id)
-  );
+  const handleMouseEnter = () => {
+    if (hasActivity) {
+      // Clear any existing timeout
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      
+      // Set new timeout for 1.5s
+      timeoutRef.current = setTimeout(() => {
+        setShowPopup(true);
+      }, 500);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    // Clear timeout and hide popup
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    setShowPopup(false);
+  };
 
   // Get highlight colors from projects
   const highlightColors = activity?.projects
-    .filter(p => selectedProjects.length === 0 || selectedProjects.includes(p.project_id))
+    .filter(p => selectedProjects.includes(p.project_id))
     .map(p => p.project_color) || [];
 
   // Generate gradient background if multiple projects
@@ -75,9 +92,9 @@ export function CalendarDay({
         ${hasActivity ? 'cursor-pointer' : ''}
         transition-colors
       `}
-      style={hasSelectedProjectActivity || (selectedProjects.length === 0 && highlightColors.length > 0) ? getHighlightStyle() : {}}
-      onMouseEnter={() => hasActivity && setShowPopup(true)}
-      onMouseLeave={() => setShowPopup(false)}
+      style={getHighlightStyle()}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {/* Date Number */}
       <div className="flex items-start justify-between">

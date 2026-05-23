@@ -60,3 +60,15 @@ export async function createConversation(data: {
     throw error;
   }
 }
+
+export async function deleteConversation(id: string): Promise<void> {
+  try {
+    await axios.delete(`${BASE_URL}/${id}`, {
+      withCredentials: true,
+    });
+    console.log("✅ Conversation deleted:", id);
+  } catch (error) {
+    console.error("❌ Failed to delete conversation:", error);
+    throw error;
+  }
+}

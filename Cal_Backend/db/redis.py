@@ -1,4 +1,5 @@
 # Redis for token revoking functionality with support for different token types
+import json
 import redis.asyncio as redis
 from Cal_Backend.config import Config
 
@@ -80,6 +81,31 @@ async def get_blocklist_stats() -> dict:
         }
     except Exception:
         return {"error": "Could not retrieve stats"}
+
+IMPORT_JOB_TTL = 24 * 3600  # 24 hours
+
+
+async def set_job_status(job_id: str, status_data: dict) -> None:
+    try:
+        await token_blocklist.set(
+            f"import_job:{job_id}",
+            json.dumps(status_data),
+            ex=IMPORT_JOB_TTL
+        )
+    except Exception as e:
+        print(f"Redis error in set_job_status: {e}")
+
+
+async def get_job_status(job_id: str) -> dict | None:
+    try:
+        result = await token_blocklist.get(f"import_job:{job_id}")
+        if result:
+            return json.loads(result)
+        return None
+    except Exception as e:
+        print(f"Redis error in get_job_status: {e}")
+        return None
+
 
 async def clear_expired_tokens() -> int:
     """

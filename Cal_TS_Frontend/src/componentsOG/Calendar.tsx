@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CalendarDay } from './CalendarDay';
 import { ProjectFilter } from './ProjectFilter';
@@ -7,7 +7,7 @@ import type { ProjectDisplay } from '../typesOG/project.types';
 
 interface CalendarProps {
   projects: ProjectDisplay[];
-  onOpenConversation: (conversationId: string) => void;
+  onOpenConversation: (conversationId: string, date?: Date) => void;
   onOpenNote: (noteId: string) => void;
   onOpenProject: (projectId: string, messageId: string) => void;
 }
@@ -18,9 +18,29 @@ export function Calendar({
   onOpenNote,
   onOpenProject,
 }: CalendarProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // Initialize from localStorage if available
+  const [currentDate, setCurrentDate] = useState(() => {
+    const savedDate = localStorage.getItem('calendar_current_date');
+    if (savedDate) {
+      try {
+        const parsedDate = new Date(savedDate);
+        if (!isNaN(parsedDate.getTime())) {
+          return parsedDate;
+        }
+      } catch (e) {
+        console.error('Error parsing saved calendar date:', e);
+      }
+    }
+    return new Date();
+  });
+
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const { loading, loadCalendarData, getActivityForDate } = useCalendar();
+
+  // Save to localStorage whenever currentDate changes
+  useEffect(() => {
+    localStorage.setItem('calendar_current_date', currentDate.toISOString());
+  }, [currentDate]);
 
 // Get start and end of current month
 const monthStart = useMemo(() => {
@@ -81,10 +101,43 @@ const monthEnd = useMemo(() => {
     setCurrentDate(new Date());
   };
 
+  // --- Two-Finger Swipe/Wheel Navigation ---
+  const lastWheelTime = useRef<number>(0);
+  const wheelThreshold = 30; // Min delta to trigger month change
+  const wheelCooldown = 800; // Cooldown in ms between month changes
+
+  const handleWheel = (e: React.WheelEvent) => {
+    const now = Date.now();
+    if (now - lastWheelTime.current < wheelCooldown) return;
+
+    // Use absolute values to check for horizontal vs vertical bias
+    const absX = Math.abs(e.deltaX);
+    const absY = Math.abs(e.deltaY);
+
+    // Horizontal swipe (two-finger horizontal slide on trackpad)
+    if (absX > absY && absX > wheelThreshold) {
+      if (e.deltaX > 0) {
+        goToNextMonth();
+      } else {
+        goToPreviousMonth();
+      }
+      lastWheelTime.current = now;
+    }
+    // Vertical swipe (if you prefer vertical, or as fallback)
+    else if (absY > absX && absY > wheelThreshold) {
+      if (e.deltaY > 0) {
+        goToNextMonth();
+      } else {
+        goToPreviousMonth();
+      }
+      lastWheelTime.current = now;
+    }
+  };
+
   const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white" onWheel={handleWheel}>
       {/* Header */}
       <div className="border-b border-gray-200 p-4">
         <div className="flex items-center justify-between mb-4">

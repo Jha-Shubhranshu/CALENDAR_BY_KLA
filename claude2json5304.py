@@ -4,7 +4,7 @@ from typing import Dict, List, Any, Optional
 
 # Configuration
 input_file = r"C:\Users\shubh\Desktop\desktop\Data Duta\Claude Exports\5304 Exports\5304 data-2026-02-06-17-30-52-batch-0000\conversations.json"
-output_file = r"C:\Users\shubh\Desktop\Calendar_By_Kla\simplified_claude5304.json"
+output_file = r"C:\Users\shubh\Desktop\Calendar_By_Kla\simplified_claude5304_old.json"
 
 def parse_claude_export(data: List[Dict]) -> List[Dict]:
     """

@@ -1,3 +1,4 @@
+# Chat export JSON files
 claudeduplicateconv.json
 simplified_chatgpt1.json
 simplified_chatgpt2.json
@@ -10,7 +11,48 @@ simplified_claudeCSEDTUSV.json
 simplified_claudejhashubham.json
 simplified_claudeshubhamkindlesv.json
 simplified_claudeSj.json
+simplified_*.json
+
+# Env / secrets — never commit
 .env
-node_modules
+.env.local
+.env.*.local
+.env.production
 
+# Node
+node_modules/
+.npm
 
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Terraform — state files contain plaintext secrets
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
+terraform.tfstate* 
+
+# Build artifacts
+dist_lambda/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

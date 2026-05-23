@@ -1,0 +1,28 @@
+{
+  "source": "extension",
+  "scraped_at": "2026-05-23T11:25:53.317000Z",
+  "account_email": "shubhranshu5304@gmail.com",
+  "conversation": {
+    "conversation_id": "6ef752c7-9d37-480e-8948-a07a182fb641",
+    "title": "iPhone 16 Pro missing from Apple website",
+    "url": "https://claude.ai/chat/6ef752c7-9d37-480e-8948-a07a182fb641",
+    "message_count": 2,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Why Is iphone 16 pro not visible at official apple website?",
+        "timestamp": "2026-04-11T15:04:23.516123Z",
+        "images": [],
+        "metadata": {}
+      },
+      {
+        "role": "assistant",
+        "content": "\n```\nThis block is not supported on your current device yet.\n```\n\nThe iPhone 16 Pro is no longer on Apple's website because **it has been discontinued**. Here's a quick summary of what happened:\n\nThe iPhone 16 Pro and iPhone 16 Pro Max were discontinued on September 9, 2025, following the announcement of the iPhone 17 Pro and iPhone 17 Pro Max.\n\nWith the introduction of the iPhone 17 series, Apple removed four older iPhones from its website and stores as it refreshed its lineup — specifically the iPhone 15, iPhone 15 Plus, iPhone 16 Pro, and iPhone 16 Pro Max.\n\nThis is standard Apple practice. Apple generally prefers to keep its Pro lineup exclusive to the most recent generation.\n\nApple's current iPhone lineup now consists of the iPhone 17, iPhone Air, iPhone 17 Pro, iPhone 17 Pro Max, iPhone 16, and iPhone 16e.\n\n**If you still want an iPhone 16 Pro**, you won't be able to buy one directly from Apple, but you can check with authorized sellers like your carrier or retailers like Best Buy (in the US) who may still have stock. You could also watch Apple's Certified Refurbished Store, where some iPhone 16 Pro models may appear over time.",
+        "timestamp": "2026-04-11T15:04:35.310765Z",
+        "images": [],
+        "metadata": {}
+      }
+    ]
+  },
+  "metadata": {}
+}
