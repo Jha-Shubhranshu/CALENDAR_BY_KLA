@@ -1,0 +1,30 @@
+{
+  "id": "2a1669cb-6ef5-44f9-a114-40865f483a41",
+  "title": "Problem solving",
+  "source": "claude",
+  "account": "shubhranshu5304@gmail.com",
+  "created_at": "2026-05-04T12:35:38.025920Z",
+  "updated_at": "2026-05-04T12:35:43.915291Z",
+  "messages": [
+    {
+      "id": "019df2fc-ab2a-74a9-9aa5-8a74acfa6439",
+      "role": "user",
+      "content": "Solve this question",
+      "content_type": "text",
+      "timestamp": "2026-05-04T12:35:38.519233Z",
+      "metadata": {},
+      "parent_id": "00000000-0000-4000-8000-000000000000"
+    },
+    {
+      "id": "019df2fc-ab2a-74a9-9aa5-8a752c1e5e1a",
+      "role": "assistant",
+      "content": " ## Answer: **\"not less\"**\n\nHere's why:\n\n```c\nint x = -1;\nunsigned int y = 1;\nif (x < y)\n    printf(\"less\\n\");\nelse\n    printf(\"not less\\n\");\n```\n\n### The Key: Integer Promotion Rules\n\nWhen you compare a **signed int** with an **unsigned int**, C promotes the signed value to unsigned.\n\nSo `-1` (signed) gets converted to **unsigned int**, which becomes **4294967295** (0xFFFFFFFF on a 32-bit system).\n\nNow the comparison becomes:\n> **4294967295 < 1** → **false**\n\nSo the `else` branch runs → output is **\"not less\"**\n\n### Answer: `not less`",
+      "content_type": "code",
+      "timestamp": "2026-05-04T12:35:43.915291Z",
+      "metadata": {
+        "language": "c"
+      },
+      "parent_id": "019df2fc-ab2a-74a9-9aa5-8a74acfa6439"
+    }
+  ]
+}

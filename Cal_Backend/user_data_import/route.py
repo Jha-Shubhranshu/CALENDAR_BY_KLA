@@ -19,7 +19,7 @@ from Cal_Backend.Conversations.schemas import ConversationResponse
 
 from .notesimportschemas import GoogleKeepImportRequest
 from .service import validate_import_data, ImportService
-from .schemas import ExtensionIngestSchema, ImportConversationSchema
+from .schemas import ExtensionIngestSchema, ImportConversationSchema, ClaudeNativeConversation
 
 Json_router = APIRouter()
 ACCESS_TOKEN_BEARER = AccessTokenBearerC()
@@ -30,69 +30,70 @@ HEADER_TOKEN_BEARER = TokenBearer(cookie_name="access_token", auto_error=True)
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _save_to_local_disk(data: List[ImportConversationSchema]):
+def _save_to_local_disk(data: List[ClaudeNativeConversation]):
     """
-    Temporarily save extension data to local disk for debugging.
-    Saves JSON to data.txt and images to an images/ folder.
-    Handles a list of conversations (the extension format).
+    Local-dev debugging: dump each conversation as JSON, plus decode any
+    extension-attached image bytes into actual image files.
     """
     try:
-        # Use absolute path as requested
         base_path = r"C:\Users\shubh\Desktop\Calendar_By_Kla\extension feeds"
+        os.makedirs(base_path, exist_ok=True)
         
-        # Ensure base directory exists
-        if not os.path.exists(base_path):
-            os.makedirs(base_path, exist_ok=True)
-            
         for conv in data:
-            # Create a unique folder for this conversation ingestion
             timestamp_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            folder_name = f"feed_{timestamp_str}_{str(uuid.uuid4())[:8]}"
-            feed_dir = os.path.join(base_path, folder_name)
+            short_id = (conv.uuid[:8] if conv.uuid else uuid.uuid4().hex[:8])
+            feed_dir = os.path.join(base_path, f"feed_{timestamp_str}_{short_id}")
             os.makedirs(feed_dir, exist_ok=True)
             
-            # 1. Save the text/JSON data
-            text_file = os.path.join(feed_dir, "data.txt")
-            with open(text_file, "w", encoding="utf-8") as f:
-                # Use model_dump_json for Pydantic models
+            # 1. Full JSON dump
+            with open(os.path.join(feed_dir, "data.txt"), "w", encoding="utf-8") as f:
                 f.write(conv.model_dump_json(indent=2))
-                
-            # 2. Save images if any (extension original format: inside metadata.images)
+            
+            # 2. Decode any extension-attached image bytes
             images_saved = 0
-            for i, msg in enumerate(conv.messages):
-                # Extension originally puts images in metadata
-                images = msg.metadata.get("images", [])
-                if images:
-                    images_dir = os.path.join(feed_dir, "images")
-                    if not os.path.exists(images_dir):
-                        os.makedirs(images_dir, exist_ok=True)
+            for i, msg in enumerate(conv.chat_messages):
+                all_atts = list(msg.attachments) + list(msg.files)
+                for j, att in enumerate(all_atts):
+                    if not att.extension_data or not att.extension_data.data:
+                        continue
                     
-                    for j, img in enumerate(images):
-                        img_data = img.get("data")
-                        if not img_data:
-                            continue
-                            
-                        # Handle base64 prefix if present
-                        if "," in img_data:
-                            _, img_data = img_data.split(",", 1)
-                        
-                        try:
-                            binary_data = base64.b64decode(img_data)
-                            mime_type = img.get("type", "image/png")
-                            ext = mime_type.split("/")[-1] if "/" in mime_type else "png"
-                            if len(ext) > 4: ext = "png"
-                            
-                            img_filename = f"msg_{i}_img_{j}.{ext}"
-                            with open(os.path.join(images_dir, img_filename), "wb") as f:
-                                f.write(binary_data)
-                            images_saved += 1
-                        except Exception as img_err:
-                            print(f">>> [DEBUG] ERROR decoding image: {img_err}")
-                            
+                    raw = att.extension_data.data
+                    # Handle "data:image/png;base64,..." prefix
+                    prefix, b64 = ("", raw)
+                    if "," in raw:
+                        prefix, b64 = raw.split(",", 1)
+                    
+                    try:
+                        binary = base64.b64decode(b64)
+                    except Exception as e:
+                        print(f">>> [DEBUG] base64 decode failed for msg {i} att {j}: {e}")
+                        continue
+                    
+                    # Pick an extension
+                    ext = "bin"
+                    if att.file_type:
+                        if "png" in att.file_type: ext = "png"
+                        elif "jpeg" in att.file_type or "jpg" in att.file_type: ext = "jpg"
+                        elif "webp" in att.file_type: ext = "webp"
+                        elif "gif" in att.file_type: ext = "gif"
+                    elif "png" in prefix: ext = "png"
+                    elif "jpeg" in prefix or "jpg" in prefix: ext = "jpg"
+                    elif "webp" in prefix: ext = "webp"
+                    elif "gif" in prefix: ext = "gif"
+                    
+                    images_dir = os.path.join(feed_dir, "images")
+                    os.makedirs(images_dir, exist_ok=True)
+                    
+                    base_name = (att.file_name or f"msg_{i}_att_{j}").rsplit(".", 1)[0]
+                    out_path = os.path.join(images_dir, f"{base_name}.{ext}")
+                    with open(out_path, "wb") as f:
+                        f.write(binary)
+                    images_saved += 1
+            
             print(f">>> [DEBUG] SAVED EXTENSION FEED: {feed_dir} (Images: {images_saved})")
     except Exception as e:
         print(f">>> [DEBUG] ERROR saving extension feed to disk: {e}")
-
+        import traceback; traceback.print_exc()
 
 async def _dispatch_import(
     session: AsyncSession,
@@ -248,27 +249,21 @@ async def list_import_jobs(
 
 @Json_router.post("/extension/ingest", status_code=status.HTTP_202_ACCEPTED)
 async def ingest_from_extension(
-    data: List[ImportConversationSchema],
+    data: List[ClaudeNativeConversation],
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_userC),
     session: AsyncSession = Depends(get_session),
 ):
-    """
-    Ingest conversations from the browser extension with deduplication.
-    Processed asynchronously to handle potentially large message histories.
-    """
+    """Ingest conversations from the browser extension in Claude's native export format."""
     print(f">>> [DEBUG] Extension ingest received for {len(data)} conversations")
     
-    # Temporarily save to local disk for debugging
     _save_to_local_disk(data)
-
-    # Wrap in a list for _dispatch_import
-    # Convert models to dicts for the dispatcher
-    serialisable = [conv.model_dump() for conv in data]
+    
+    serialisable = [conv.model_dump(by_alias=True) for conv in data]
     
     return await _dispatch_import(
         session, background_tasks, current_user,
-        "extension_ingest", serialisable
+        "extension_ingest", serialisable,
     )
 
 

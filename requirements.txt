@@ -23,3 +23,5 @@ fastapi-mail
 httpx
 aiomysql
 mangum==0.17.0
+
+aioboto3

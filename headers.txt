@@ -1,0 +1,13 @@
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 108
+Connection: keep-alive
+Date: Wed, 27 May 2026 11:12:42 GMT
+Apigw-Requestid: eBWyqgVaIAMEY0A=
+set-cookie: access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImVtYWlsIjoic2gyakBnbWFpbC5jb20iLCJ1c2VyX3VpZCI6Ijc0ZWExNGMwLTJmMTYtNGM0My05OTgwLThkOGY0M2MwNDcxMiIsInJvbGUiOiJ1c2VyIn0sImV4cCI6MTc3OTg4Mzk2MiwianRpIjoiYzkyYTRjZTctOWU4ZC00MTg5LWFlM2EtNTg0NzE0ZmE1ZDFlIiwicmVmcmVzaCI6ZmFsc2V9.ZRPphd5LHR6fdlCY8dMUNKacEl7YglcB92p1vmz6zUU; HttpOnly; Max-Age=3600; Path=/; SameSite=none; Secure
+set-cookie: refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImVtYWlsIjoic2gyakBnbWFpbC5jb20iLCJ1c2VyX3VpZCI6Ijc0ZWExNGMwLTJmMTYtNGM0My05OTgwLThkOGY0M2MwNDcxMiJ9LCJleHAiOjE3ODAwNTMxNjIsImp0aSI6Ijg5ZDcyZGM2LTlmZGQtNGM2Ni1iN2NiLTQ5YmM0NzQyNDljOSIsInJlZnJlc2giOnRydWV9.tfC6gogY7L-BKXH24a4oeNR_-uh-40XVUgt82w7P1NA; HttpOnly; Max-Age=172800; Path=/; SameSite=none; Secure
+X-Cache: Miss from cloudfront
+Via: 1.1 f3ba39325ed9cd5f6bdbf28b5559575a.cloudfront.net (CloudFront)
+X-Amz-Cf-Pop: DEL54-P1
+X-Amz-Cf-Id: GpCF0WyCQOgCBh8gDL4lL4oyHiLWDY2tJVfMwiVP-NWndzzG7EkSVw==
+

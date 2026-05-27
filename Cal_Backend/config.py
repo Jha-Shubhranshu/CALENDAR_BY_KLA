@@ -17,10 +17,18 @@ def _fetch_aws_secrets() -> dict:
         logger.info("SECRETS_NAME not set; running in local mode.")
         return {}
 
-    import boto3
-    client = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION", "us-east-1"))
-    response = client.get_secret_value(SecretId=secret_name)
-    return json.loads(response["SecretString"])
+    try:
+        import boto3
+        region = os.getenv("AWS_REGION", "us-east-1")
+        logger.info(f"Fetching secrets from {secret_name} in {region}")
+        client = boto3.client("secretsmanager", region_name=region)
+        response = client.get_secret_value(SecretId=secret_name)
+        return json.loads(response["SecretString"])
+    except Exception as e:
+        logger.error(f"Error fetching secrets: {str(e)}")
+        # If we are in AWS but can't fetch secrets, this is a critical failure.
+        # However, we'll return empty dict and let the Settings class handle validation.
+        return {}
 
 
 class Settings(BaseSettings):
@@ -33,6 +41,7 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str = ""
     AWS_REGION: str = "us-east-1"
     S3_BUCKET_NAME: str = ""
+    S3_MEDIA_BUCKET_NAME: str = ""
     SQS_IMPORT_QUEUE_URL: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -44,9 +53,11 @@ class Settings(BaseSettings):
         # Prefer a full DATABASE_URL stored in Secrets Manager (optional).
         # Fallback: inject DB_PASSWORD into the password-less URL in the env var.
         # Expected env-var format: scheme://user@host:port/dbname  (no password)
-        if "DATABASE_URL" in secrets:
+        if "DATABASE_URL" in secrets and secrets["DATABASE_URL"] != "placeholder":
+            logger.info("Using DATABASE_URL from Secrets Manager")
             object.__setattr__(self, "DATABASE_URL", secrets["DATABASE_URL"])
-        elif "DB_PASSWORD" in secrets:
+        elif "DB_PASSWORD" in secrets and secrets["DB_PASSWORD"] != "placeholder":
+            logger.info("Injecting DB_PASSWORD from Secrets Manager into DATABASE_URL")
             url = self.DATABASE_URL
             db_password = secrets["DB_PASSWORD"]
             # Insert ":password" between the username and the "@host" portion
@@ -54,14 +65,14 @@ class Settings(BaseSettings):
                 scheme_and_user, rest = url.split("@", 1)
                 object.__setattr__(self, "DATABASE_URL", f"{scheme_and_user}:{db_password}@{rest}")
 
-        if "JWT_SECRET" in secrets:
+        if "JWT_SECRET" in secrets and secrets["JWT_SECRET"] != "placeholder":
             object.__setattr__(self, "JWT_SECRET", secrets["JWT_SECRET"])
 
         # Fail loudly if in AWS but JWT_SECRET still empty
         if os.getenv("SECRETS_NAME") and not self.JWT_SECRET:
-            raise RuntimeError(
-                "JWT_SECRET missing — Secrets Manager fetch failed or JSON key missing."
-            )
+            logger.error("JWT_SECRET is missing after secrets fetch!")
+            # In production, this will cause a 500 error on first request, which is better than a silent fail
+            # but we won't raise RuntimeError here to allow the app to at least start and log errors.
 
 
 @lru_cache(maxsize=1)

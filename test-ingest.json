@@ -1,0 +1,27 @@
+{
+    "conversations":  [
+                          {
+                              "id":  "test-conv-1",
+                              "updated_at":  "2026-05-26T00:00:00Z",
+                              "source":  "claude",
+                              "messages":  [
+                                               {
+                                                   "id":  null,
+                                                   "content_type":  "text",
+                                                   "timestamp":  "2026-05-26T00:00:00Z",
+                                                   "parent_id":  null,
+                                                   "content":  "Hello",
+                                                   "role":  "user"
+                                               }
+                                           ],
+                              "created_at":  "2026-05-26T00:00:00Z",
+                              "title":  "Test",
+                              "account":  "test@example.com"
+                          }
+                      ],
+    "_meta":  {
+                  "account":  "test@example.com",
+                  "source":  "test",
+                  "trigger":  "manual"
+              }
+}

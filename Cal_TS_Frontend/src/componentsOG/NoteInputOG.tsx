@@ -1,111 +1,128 @@
-import { useState } from "react";
-import { ColourPicker } from "./ColorPicker";
-import { Palette } from "lucide-react";
-import { useEffect,useRef } from 'react';
-import { useClickOutsideinputbox } from "../hooksOG/Intelligenceeffects/useClickOutsideinputbox";
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Palette } from 'lucide-react';
+import { ColourPicker } from './ColorPicker';
+import { useClickOutsideinputbox } from '../hooksOG/Intelligenceeffects/useClickOutsideinputbox';
 import { useClickOutside } from '../hooksOG/Intelligenceeffects/useClickOutside';
-import type { Note } from "../typesOG/note.types";
-
-export interface newNoteSchema {title:string , content: string}
+import type { Note } from '../typesOG/note.types';
 
 interface NoteInputPropsSchema {
-    onCreateNote: (NabkaNote: Note ) => Promise<unknown> | unknown;
+  onCreateNote: (note: Note) => Promise<unknown> | unknown;
 }
 
+export function NoteInput({ onCreateNote }: NoteInputPropsSchema) {
+  const [newNote, setNewNote] = useState({ title: '', content: '', background_color: '' });
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [currentColor, setCurrentColor] = useState('');
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
-export function NoteInput({onCreateNote}: NoteInputPropsSchema) {
-    const [showColorPicker, setShowColorPicker] = useState(false);
-    const [newNote, setNewNote] = useState({title: '', content: '', background_color: ''});
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [currentColor, setCurrentColor] = useState("")
+  const noteinputRef = useRef<HTMLDivElement>(null);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    const colorPickerRef = useRef<HTMLDivElement>(null);
-    const noteinputRef = useRef<HTMLDivElement>(null);
-    
-    useClickOutsideinputbox(noteinputRef, ()=> setIsExpanded(false))
-    useClickOutside(colorPickerRef, ()=> setShowColorPicker(false))
+  useClickOutsideinputbox(noteinputRef, () => setIsExpanded(false));
+  useClickOutside(colorPickerRef, () => setShowColorPicker(false));
 
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const handleSubmit = async () => {
-
-        if (newNote.title.trim() || newNote.content.trim()) {
-            await onCreateNote(newNote);
-            setNewNote({ title: '', content: '', background_color: ''});
-            setIsExpanded(false);
-            setCurrentColor('');
-        }
+  const handleSubmit = useCallback(async () => {
+    if (newNote.title.trim() || newNote.content.trim()) {
+      await onCreateNote(newNote);
+      setNewNote({ title: '', content: '', background_color: '' });
+      setIsExpanded(false);
+      setCurrentColor('');
     }
+  }, [newNote, onCreateNote]);
 
-    useEffect(() => {
+  useEffect(() => {
+    if (!isExpanded) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + Enter to submit
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         handleSubmit();
       }
-      
-      // Escape to close
-      if (e.key === 'Escape' && isExpanded) {
+      if (e.key === 'Escape') {
         setIsExpanded(false);
-        setNewNote({ title: '', content: '', background_color:''});
+        setNewNote({ title: '', content: '', background_color: '' });
         textareaRef.current?.blur();
       }
     };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isExpanded, handleSubmit]);
 
-    if (isExpanded) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isExpanded, newNote, currentColor, handleSubmit]);
+  const hasCustomColor = currentColor && currentColor !== '#ffffff';
+  const cardStyle = hasCustomColor ? { backgroundColor: currentColor } : {};
 
-
-
-    
-
-    return (
-        <div ref={noteinputRef} className="border rounded-lg shadow-md max-w-2xl mx-auto mb-8 relative" style={{backgroundColor: currentColor}}>
-
-            {
-                isExpanded&& (<input type="text" placeholder="Title" className="w-full px-4 pt-4 pb-2 outline-none bg-transparent" value={newNote.title} onChange={(e) => setNewNote({...newNote, title: e.target.value})} />)
-            }
-
-            <textarea placeholder="Take a Note..." className="w-full px-4 py-3 outline-none resize-none bg-transparent" rows={isExpanded?3:1} value={newNote.content} onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}  onFocus={() => setIsExpanded(true)} />
-
-            {isExpanded && (
-                    <div ref={colorPickerRef} className="relative">
-                        <button className="p-2 hover:bg-gray-300 rounded-full" title="Background options" onClick={() => setShowColorPicker(!showColorPicker)}>
-                        <Palette size={16} className="text-gray-700" />
-                        </button>
-                        {showColorPicker && (
-                        <ColourPicker 
-                          onSelectColor={(color: string) => {
-                            setCurrentColor(color);
-                            setNewNote(prev => ({ ...prev, background_color: color }));
-                          }} 
-                          onClose={() => setShowColorPicker(false)} 
-                        />
-                        )}
-                        <button onClick={handleSubmit} className="px-6 py-2 hover:bg-gray-200 rounded">Save</button>
-                    </div>
-            )
+  return (
+    <div
+      ref={noteinputRef}
+      style={cardStyle}
+      className={`
+        w-full rounded-xl border shadow-sm transition-all
+        ${hasCustomColor
+          ? 'border-black/10'
+          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
         }
+        ${isExpanded ? 'shadow-md' : ''}
+      `}
+    >
+      {isExpanded && (
+        <input
+          type="text"
+          placeholder="Title"
+          value={newNote.title}
+          onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
+          className="w-full px-4 pt-4 pb-2 text-sm font-semibold bg-transparent outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+        />
+      )}
 
+      <textarea
+        ref={textareaRef}
+        placeholder="Take a note…"
+        value={newNote.content}
+        rows={isExpanded ? 3 : 1}
+        onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
+        onFocus={() => setIsExpanded(true)}
+        className="w-full px-4 py-3 text-sm bg-transparent outline-none resize-none text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500"
+      />
 
-            {/* <div className="flex flex-col gap-4">
-            <div className="flex flex-col">
-                <label>title</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} />
-            </div>
-            <div className="flex flex-col">
-                <label>content</label>
-            <input value={content} onChange={(e) => setContent(e.target.value)} />
-            </div>
-            <button onClick={handleSubmit}>Add</button>
-            </div> */}
+      {isExpanded && (
+        <div className="flex items-center justify-between px-3 pb-3">
+          <div ref={colorPickerRef} className="relative">
+            <button
+              onClick={() => setShowColorPicker(!showColorPicker)}
+              title="Background color"
+              className={`p-1.5 rounded-full transition-colors ${
+                hasCustomColor ? 'hover:bg-black/10' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Palette size={16} className="text-gray-500 dark:text-gray-400" />
+            </button>
+            {showColorPicker && (
+              <ColourPicker
+                onSelectColor={(color) => {
+                  setCurrentColor(color);
+                  setNewNote(prev => ({ ...prev, background_color: color }));
+                }}
+                onClose={() => setShowColorPicker(false)}
+              />
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setIsExpanded(false); setNewNote({ title: '', content: '', background_color: '' }); setCurrentColor(''); }}
+              className="px-4 py-1.5 text-sm rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              Close
+            </button>
+            <button
+              onClick={handleSubmit}
+              className="px-4 py-1.5 text-sm rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors font-medium"
+            >
+              Save
+            </button>
+          </div>
         </div>
-    )
+      )}
+    </div>
+  );
 }

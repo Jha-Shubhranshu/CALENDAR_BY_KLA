@@ -75,6 +75,18 @@ class ConversationCreate(BaseModel):
     metadata: Optional[Dict[str, Any]] = {}
     account: str
 
+class MediaResponse(BaseModel):
+    id: UUID
+    file_path: Optional[str] = None
+    file_type: str
+    file_size: int
+    mime_type: str
+    original_filename: Optional[str] = None
+    position_index: int
+
+    class Config:
+        from_attributes = True
+
 class MessageResponse(BaseModel):
     id: UUID
     conversation_id: Optional[UUID]
@@ -88,6 +100,7 @@ class MessageResponse(BaseModel):
     title: Optional[str] = None
     conversation_title: Optional[str] = None
     original_source: Optional[str] = None
+    images: List[MediaResponse] = []
 
 class ConversationResponse(BaseModel):
     id: UUID

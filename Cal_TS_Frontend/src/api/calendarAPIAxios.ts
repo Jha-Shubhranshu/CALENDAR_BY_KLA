@@ -69,7 +69,17 @@ export async function getCalendarActivity(
       withCredentials: true,
     });
     
-    console.log('✅ Calendar data received:', res.data);
+    console.log('✅ Calendar data response:', {
+      status: res.status,
+      headers: res.headers,
+      contentType: res.headers['content-type'],
+      data: res.data
+    });
+
+    if (typeof res.data === 'string' && res.data.trim().startsWith('<!doctype html>')) {
+      console.error('❌ RECEIVED HTML INSTEAD OF JSON. This usually means CloudFront/S3 misrouting.');
+    }
+
     return res.data;
   } catch (error) {
     console.error('❌ Failed to fetch calendar activity:', error);

@@ -112,12 +112,12 @@ export function ChatWindow({
     }
   };
 
-  // ✅ Main background based on source
+  // Main background based on source
   const getMainBackground = (): string => {
     switch (source) {
-      case 'claude': return 'bg-[#F5F4F1]';
-      case 'chatgpt': return 'bg-white';
-      default: return 'bg-gray-50';
+      case 'claude': return 'bg-[#F5F4F1] dark:bg-gray-950';
+      case 'chatgpt': return 'bg-white dark:bg-gray-950';
+      default: return 'bg-gray-50 dark:bg-gray-950';
     }
   };
 
@@ -248,14 +248,14 @@ export function ChatWindow({
 
       {/* Input Area (only for projects or manual conversations) */}
       {(isProject || source === 'manual') && onSendMessage && (
-        <div className="border-t border-gray-200 bg-white p-4">
+        <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
           <div className="flex items-end gap-2">
             <textarea
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Type a message..."
-              className="flex-1 resize-none border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 max-h-32"
+              className="flex-1 resize-none border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 max-h-32"
               rows={1}
             />
             <button
@@ -264,13 +264,13 @@ export function ChatWindow({
               className={`p-3 rounded-lg transition ${
                 newMessage.trim()
                   ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
               }`}
             >
               <Send size={20} />
             </button>
           </div>
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
             Press Enter to send, Shift+Enter for new line
           </p>
         </div>

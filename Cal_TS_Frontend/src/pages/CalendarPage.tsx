@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Sidebar } from '../componentsOG/Sidebar';
 import { Header } from '../componentsOG/Header';
 import { Calendar } from '../componentsOG/Calendar';
 import { useProjects } from '../hooksOG/useProjects';
 import { useLabels } from '../hooksOG/useLabels';
 import { useNotes } from '../hooksOG/useNotes';
+import { useCalendar } from '../hooksOG/useCalendar';
 import { NoteEditModal } from '../componentsOG/intelligentmodals/NoteEditModal';
 import { ChatWindow } from '../componentsOG/ChatWindow';
 import { ConversationsSidebar } from '../componentsOG/ConversationsSidebar';
@@ -13,13 +14,14 @@ import { CreateProjectModal } from '../componentsOG/modals/CreateProjectModal';
 import type { NoteCardDisplay } from '../typesOG/note.types';
 import type { ConversationWithMessages, NotebookSource } from '../typesOG/conversation.types';
 import type { ProjectWithMessages } from '../typesOG/project.types';
-import { getConversation } from '../api/conversationsAPIAxios';
+import { getConversation, deleteConversation } from '../api/conversationsAPIAxios';
 import { getProject, addMessageToProject, removeMessageFromProject, createProject, deleteProject } from '../api/projectsAPIAxios';
 
 export function CalendarPage() {
   const { projects, loading: loadingProjects, loadProjects } = useProjects();
   const { labels } = useLabels();
-  const { notes, updateNote, deleteNote, togglePin } = useNotes();
+  const { notes, updateNote, deleteNote: deleteNoteHook, togglePin } = useNotes();
+  const { loading: loadingCalendar, loadCalendarData, getActivityForDate } = useCalendar();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedNotebookSource, setSelectedNotebookSource] = useState<NotebookSource | null>(null);
@@ -39,6 +41,20 @@ export function CalendarPage() {
 
   const [showProjectSelector, setShowProjectSelector] = useState<string | null>(null);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+
+  // Keep track of current calendar range for refreshes
+  const [currentCalendarRange, setCurrentCalendarRange] = useState<{start: Date, end: Date, projectIds?: string[]} | null>(null);
+
+  const refreshCalendar = useCallback(() => {
+    if (currentCalendarRange) {
+      loadCalendarData(currentCalendarRange.start, currentCalendarRange.end, currentCalendarRange.projectIds);
+    }
+  }, [currentCalendarRange, loadCalendarData]);
+
+  const handleMonthChange = useCallback((start: Date, end: Date, projectIds?: string[]) => {
+    setCurrentCalendarRange({ start, end, projectIds });
+    loadCalendarData(start, end, projectIds);
+  }, [loadCalendarData]);
 
   // ========== HANDLERS ==========
 
@@ -81,6 +97,27 @@ export function CalendarPage() {
       console.error('Error opening conversation:', error);
     } finally {
       setLoadingChatWindow(false);
+    }
+  };
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    try {
+      await deleteConversation(conversationId);
+      setOpenChatWindow(null);
+      refreshCalendar();
+      console.log('✅ Conversation deleted and calendar refreshed');
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    try {
+      await deleteNoteHook(noteId);
+      refreshCalendar();
+      console.log('✅ Note deleted and calendar refreshed');
+    } catch (error) {
+      console.error('Error deleting note:', error);
     }
   };
 
@@ -253,14 +290,14 @@ export function CalendarPage() {
   // Loading state
   if (loadingProjects) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900" />
+      <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-500 border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-white">
+    <div className="h-screen overflow-hidden bg-white dark:bg-gray-950 transition-colors duration-200">
       <Header 
         searchQuery={searchQuery} 
         onSearchChange={setSearchQuery} 
@@ -291,6 +328,7 @@ export function CalendarPage() {
               source={selectedNotebookSource}
               onClose={handleCloseConversationsSidebar}
               onSelectConversation={handleOpenConversation}
+              onDeleteConversation={refreshCalendar}
             />
           </div>
         )}
@@ -311,17 +349,21 @@ export function CalendarPage() {
               onRemoveFromProject={openChatWindow.type === 'project' ? handleRemoveFromProject : undefined}
               onNavigateToOriginal={handleNavigateToOriginal}
               onDeleteProject={openChatWindow.type === 'project' ? () => handleDeleteProject(openChatWindow.data.id) : undefined}
+              onDeleteConversation={openChatWindow.type === 'conversation' ? () => handleDeleteConversation(openChatWindow.data.id) : undefined}
               loading={loadingChatWindow}
               isProject={openChatWindow.type === 'project'}
               scrollToMessageId={openChatWindow.scrollToMessageId}
             />
           ) : (
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto custom-scrollbar bg-white dark:bg-gray-950">
               <Calendar
                 projects={projects}
                 onOpenConversation={handleOpenConversation}
                 onOpenNote={handleOpenNote}
                 onOpenProject={handleOpenProject}
+                loading={loadingCalendar}
+                getActivityForDate={getActivityForDate}
+                onMonthChange={handleMonthChange}
               />
             </div>
           )}
@@ -335,7 +377,7 @@ export function CalendarPage() {
           initialPosition={{ top: 0, left: 0, width: 0, height: 0 }} // No animation from calendar
           onClose={handleCloseNoteModal}  
           onUpdate={updateNote}  
-          onDelete={deleteNote}  
+          onDelete={handleDeleteNote}  
           onTogglePin={togglePin}  
           labels={labels}  
           onAddLabelToNote={async () => {}}  

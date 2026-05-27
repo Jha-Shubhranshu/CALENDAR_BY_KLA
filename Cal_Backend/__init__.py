@@ -10,6 +10,7 @@ from Cal_Backend.Project.route import project_router
 from Cal_Backend.Calendar.route import calendar_router
 import traceback
 from fastapi.responses import PlainTextResponse
+from fastapi import Request
 
 # from src.books.routes import book_router
 # from src.reviews.routes import review_router
@@ -57,6 +58,43 @@ app = FastAPI(
 register_all_errors(app)
 
 register_middleware(app)
+
+@app.middleware("http")
+async def ultra_debug_logging(request: Request, call_next):
+    print("\n" + "=" * 100)
+    print("REQUEST RECEIVED")
+    print("METHOD:", request.method)
+    print("PATH:", request.url.path)
+    print("URL:", str(request.url))
+
+    print("\nHEADERS:")
+    for k, v in request.headers.items():
+        print(f"{k}: {v}")
+
+    try:
+        body = await request.body()
+        print("\nBODY LENGTH:", len(body))
+        print("BODY PREVIEW:", body[:500])
+    except Exception as e:
+        print("BODY READ ERROR:", str(e))
+
+    print("=" * 100)
+
+    response = await call_next(request)
+
+    print("\nRESPONSE STATUS:", response.status_code)
+
+    print("\nRESPONSE HEADERS:")
+    for k, v in response.headers.items():
+        print(f"{k}: {v}")
+
+    print("=" * 100 + "\n")
+
+    return response
+
+
+
+print("Registered middlewares:", [m.cls.__name__ for m in app.user_middleware])
 
 app.include_router(Json_router, prefix=f"{version_prefix}/ArjunJson", tags=["Json"])
 # app.include_router(book_router, prefix=f"{version_prefix}/books", tags=["books"])

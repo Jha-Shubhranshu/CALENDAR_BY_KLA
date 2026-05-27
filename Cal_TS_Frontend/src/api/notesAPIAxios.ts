@@ -14,7 +14,16 @@ console.log("Asking for current user:");
         withCredentials: true,
       });
 
-      console.log("✅ User data retieved:", res.data);
+      console.log("✅ User data response:", {
+        status: res.status,
+        contentType: res.headers['content-type'],
+        data: res.data
+      });
+
+      if (typeof res.data === 'string' && res.data.trim().startsWith('<!doctype html>')) {
+        console.error('❌ RECEIVED HTML INSTEAD OF JSON in getCurrentUser');
+      }
+
       return res.data;
 
       

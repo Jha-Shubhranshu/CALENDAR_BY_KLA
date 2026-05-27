@@ -162,7 +162,10 @@ class Conversation(SQLModel, table=True):
     
     # Relationships
     user: User = Relationship(back_populates="conversations")
-    notes: List["Note"] = Relationship(back_populates="conversation")
+    notes: List["Note"] = Relationship(
+        back_populates="conversation",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
 
 class Project(SQLModel, table=True):
@@ -297,7 +300,10 @@ class Note(SQLModel, table=True):
     user: User = Relationship(back_populates="notes")
     conversation: Optional[Conversation] = Relationship(back_populates="notes")
     project: Optional[Project] = Relationship(back_populates="notes")
-    media: List["Media"] = Relationship(back_populates="note")
+    media: List["Media"] = Relationship(
+        back_populates="note",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
     checklist_items: List["ChecklistItem"] = Relationship(back_populates="note")
     labels: List["Label"] = Relationship(
         back_populates="notes",
@@ -316,32 +322,27 @@ class Media(SQLModel, table=True):
     __tablename__ = "media"
     
     id: UUID = Field(
-    default_factory=uuid.uuid4,
-    sa_column=Column(
-        pg.UUID,
-        nullable=False,
-        primary_key=True
-        )
+        default_factory=uuid.uuid4,
+        sa_column=Column(pg.UUID, nullable=False, primary_key=True),
     )
     note_id: UUID = Field(foreign_key="notes.id", ondelete="CASCADE", index=True)
     user_id: UUID = Field(foreign_key="users.id", ondelete="CASCADE")
     
-    file_path: str = Field(nullable=False)
+    file_path: str = Field(nullable=False)               # S3 Key
     file_type: MediaType = Field(nullable=False)
-    file_size: int = Field(nullable=False)  # in bytes
+    file_size: int = Field(nullable=False)               # in bytes
     mime_type: str = Field(nullable=False)
     original_filename: str = Field(nullable=False)
     position_index: int = Field(default=0)
     
     created_at: datetime = Field(
         sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False),
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(timezone.utc),
     )
     
     # Relationships
     note: Note = Relationship(back_populates="media")
     user: User = Relationship(back_populates="media")
-
 
 class ChecklistItem(SQLModel, table=True):
     __tablename__ = "checklist_items"

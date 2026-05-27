@@ -96,8 +96,8 @@ const Authsignup = ({ onAuthSuccess }: AuthProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl shadow-blue-100/40 overflow-hidden grid lg:grid-cols-5">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+      <div className="w-full max-w-5xl bg-white dark:bg-gray-900 rounded-3xl shadow-2xl shadow-blue-100/40 dark:shadow-black/40 overflow-hidden grid lg:grid-cols-5 border border-gray-100 dark:border-gray-800">
         
         {/* Decorative panel — hidden on mobile, 2/5 width on desktop */}
         <div className="hidden lg:flex lg:col-span-2 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 p-12 flex-col justify-between relative overflow-hidden">
@@ -149,10 +149,10 @@ const Authsignup = ({ onAuthSuccess }: AuthProps) => {
             </div>
 
             <div className="mb-8">
-              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-gray-50 tracking-tight">
                 Create your account
               </h2>
-              <p className="text-slate-500 mt-2 text-sm">
+              <p className="text-slate-500 dark:text-gray-400 mt-2 text-sm">
                 Get started in less than a minute. No credit card required.
               </p>
             </div>
@@ -203,7 +203,7 @@ const Authsignup = ({ onAuthSuccess }: AuthProps) => {
 
               {/* Password — needs custom rendering for toggle + strength */}
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
                   Password
                 </label>
                 <div className="relative">
@@ -216,7 +216,7 @@ const Authsignup = ({ onAuthSuccess }: AuthProps) => {
                     disabled={isSigningUp}
                     autoComplete="new-password"
                     placeholder="At least 8 characters"
-                    className="w-full pl-4 pr-11 py-2.5 rounded-xl border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all disabled:bg-slate-50 disabled:cursor-not-allowed"
+                    className="w-full pl-4 pr-11 py-2.5 rounded-xl border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 dark:focus:border-blue-400 transition-all disabled:bg-slate-50 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
@@ -240,7 +240,7 @@ const Authsignup = ({ onAuthSuccess }: AuthProps) => {
                         />
                       ))}
                     </div>
-                    <span className="text-xs text-slate-500 w-14 text-right">
+                    <span className="text-xs text-slate-500 dark:text-gray-400 w-14 text-right">
                       {passwordStrength.label}
                     </span>
                   </div>
@@ -248,11 +248,11 @@ const Authsignup = ({ onAuthSuccess }: AuthProps) => {
               </div>
 
               {signupError && (
-                <div role="alert" className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
+                <div role="alert" className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 flex items-start gap-2">
                   <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-red-600 text-xs font-bold">!</span>
                   </div>
-                  <p className="text-sm text-red-700">{signupError}</p>
+                  <p className="text-sm text-red-700 dark:text-red-400">{signupError}</p>
                 </div>
               )}
 
@@ -274,7 +274,7 @@ const Authsignup = ({ onAuthSuccess }: AuthProps) => {
                 )}
               </button>
 
-              <p className="text-xs text-center text-slate-500 mt-6">
+              <p className="text-xs text-center text-slate-500 dark:text-gray-400 mt-6">
                 By signing up, you agree to our{' '}
                 <a href="#" className="text-blue-600 hover:underline">Terms</a>
                 {' '}and{' '}
@@ -302,7 +302,7 @@ interface FieldProps {
 
 const Field = ({ label, type, value, onChange, placeholder, disabled, autoComplete, inputRef }: FieldProps) => (
   <div>
-    <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
+    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">{label}</label>
     <input
       ref={inputRef}
       type={type}
@@ -312,7 +312,7 @@ const Field = ({ label, type, value, onChange, placeholder, disabled, autoComple
       disabled={disabled}
       autoComplete={autoComplete}
       placeholder={placeholder}
-      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all disabled:bg-slate-50 disabled:cursor-not-allowed"
+      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 dark:focus:border-blue-400 transition-all disabled:bg-slate-50 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
     />
   </div>
 );

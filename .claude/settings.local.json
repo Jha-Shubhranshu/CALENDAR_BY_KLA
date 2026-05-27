@@ -8,7 +8,11 @@
       "Bash(python -m venv .venv)",
       "Bash(.venvScriptspython.exe -c ' *)",
       "Bash(python3 -c \"import fastapi\")",
-      "PowerShell(cd \"C:\\\\Users\\\\shubh\\\\Desktop\\\\Calendar_By_Kla\"; $py = Get-ChildItem \"$env:LOCALAPPDATA\\\\Programs\\\\Python\" -Filter \"python.exe\" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName; Write-Host \"Found: $py\"; if \\($py\\) { & $py --version })"
+      "PowerShell(cd \"C:\\\\Users\\\\shubh\\\\Desktop\\\\Calendar_By_Kla\"; $py = Get-ChildItem \"$env:LOCALAPPDATA\\\\Programs\\\\Python\" -Filter \"python.exe\" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName; Write-Host \"Found: $py\"; if \\($py\\) { & $py --version })",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\shubh\\\\Desktop\\\\Calendar_By_Kla\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)"
     ]
   }
 }

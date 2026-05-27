@@ -23,7 +23,10 @@ resource "aws_iam_role" "github_actions_deploy" {
         }
         StringLike = {
           # Limits which repos can assume this role
-          "token.actions.githubusercontent.com:sub" = "repo:Jha-Shubhranshu/Calendar_By_Kla_Prod_FrontEnd:*"
+          "token.actions.githubusercontent.com:sub" = [
+            "repo:Jha-Shubhranshu/Calendar_By_Kla_Prod_FrontEnd:*",
+            "repo:Jha-Shubhranshu/-Calendar_By_Kla_Prod_BackEnd:*"
+          ]
         }
       }
     }]

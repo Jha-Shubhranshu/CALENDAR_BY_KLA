@@ -360,10 +360,10 @@ export function NotesPage() {
 
   if (loadingnotes || loadinglabels) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4" />
-          <p className="text-gray-400">Loading your notes...</p>
+          <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-500 border-t-transparent mx-auto mb-4" />
+          <p className="text-sm text-gray-400 dark:text-gray-500">Loading your notes…</p>
         </div>
       </div>
     );
@@ -373,7 +373,7 @@ export function NotesPage() {
   const unpinnedToShow = searchQuery ? searchUnpinnedNotes : filteredUnpinnedNotes;
 
   return (
-    <div className="h-screen overflow-hidden bg-white">
+    <div className="h-screen overflow-hidden bg-white dark:bg-gray-950 transition-colors duration-200">
       {/* Header - fixed at top, full width */}
       <Header 
         searchQuery={searchQuery} 
@@ -435,15 +435,15 @@ export function NotesPage() {
           ) : (
             <main className="flex-1 flex flex-col overflow-hidden">
               {/* Note Input - fixed at top, not scrollable */}
-              <div className="flex-none p-4 bg-white border-b border-gray-100">
+              <div className="flex-none p-4 bg-white dark:bg-gray-950 border-b border-gray-100 dark:border-gray-800">
                 <div className="max-w-2xl mx-auto">
                   <NoteInput onCreateNote={createNoteHook} />
                 </div>
               </div>
               
               {/* Notes Grid - scrollable content */}
-              <div className="flex-1 overflow-y-auto">
-                <div className="max-w-7xl mx-auto px-4">
+              <div className="flex-1 overflow-y-auto custom-scrollbar bg-white dark:bg-gray-950">
+                <div className="max-w-7xl mx-auto px-4 py-4">
                   <NotesGrid  
                     pinnedNotes={pinnedToShow}  
                     unpinnedNotes={unpinnedToShow}  
@@ -458,9 +458,9 @@ export function NotesPage() {
                   {/* Infinite scroll sentinel */}
                   <div ref={sentinelRef} className="py-8">
                     {loadingnotes && notes.length > 0 && (
-                      <div className="flex justify-center items-center">
-                        <Loader2 className="animate-spin text-gray-400" size={32} />
-                        <p className="ml-2 text-gray-400">Loading more notes...</p>
+                      <div className="flex justify-center items-center gap-2">
+                        <Loader2 className="animate-spin text-gray-400 dark:text-gray-500" size={22} />
+                        <p className="text-sm text-gray-400 dark:text-gray-500">Loading more…</p>
                       </div>
                     )}
                   </div>

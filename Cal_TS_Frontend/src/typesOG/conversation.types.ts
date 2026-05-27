@@ -1,6 +1,16 @@
 export type NotebookSource = 'claude' | 'chatgpt' | 'perplexity' | 'google_keep' | 'manual';
 export type MessageRole = 'user' | 'assistant' | 'note';
 
+export interface MediaDisplay {
+  id: string;
+  file_path?: string;
+  file_type: string;
+  file_size: number;
+  mime_type: string;
+  original_filename?: string;
+  position_index: number;
+}
+
 export interface MessageDisplay {
   id: string;
   conversation_id?: string;
@@ -14,6 +24,7 @@ export interface MessageDisplay {
   metadata: Record<string, any>;
   conversation_title?: string;
   original_source?: NotebookSource | string;
+  images?: MediaDisplay[];
 }
 
 export interface ConversationDisplay {

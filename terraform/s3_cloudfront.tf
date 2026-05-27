@@ -45,6 +45,19 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
   signing_protocol                  = "sigv4"
 }
 
+# Data sources for managed policies to avoid hardcoded ID issues
+data "aws_cloudfront_cache_policy" "caching_disabled" {
+  name = "Managed-CachingDisabled"
+}
+
+data "aws_cloudfront_origin_request_policy" "all_viewer_except_host" {
+  name = "Managed-AllViewerExceptHostHeader"
+}
+
+data "aws_cloudfront_cache_policy" "caching_optimized" {
+  name = "Managed-CachingOptimized"
+}
+
 resource "aws_cloudfront_distribution" "frontend" {
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
@@ -54,15 +67,23 @@ resource "aws_cloudfront_distribution" "frontend" {
   # New: API Gateway origin
   
   origin {
-    domain_name = replace(aws_apigatewayv2_api.main.api_endpoint, "https://", "")
-    origin_id   = "APIGW-${aws_apigatewayv2_api.main.id}"
-  
+    domain_name              = replace(aws_apigatewayv2_api.main.api_endpoint, "https://", "")
+    origin_id                = "APIGW-${aws_apigatewayv2_api.main.id}"
+
     custom_origin_config {
       http_port              = 80
       https_port             = 443
       origin_protocol_policy = "https-only"
       origin_ssl_protocols   = ["TLSv1.2"]
+      origin_read_timeout    = 60
+      origin_keepalive_timeout = 60
     }
+  }
+
+  origin {
+    domain_name              = aws_s3_bucket.media.bucket_regional_domain_name
+    origin_id                = "S3-${aws_s3_bucket.media.bucket}"
+    origin_access_control_id = aws_cloudfront_origin_access_control.media.id
   }
   
 
@@ -99,23 +120,45 @@ resource "aws_cloudfront_distribution" "frontend" {
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
   
-    # Disable caching for API responses (you can selectively enable later per-endpoint)
-    cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"  # AWS-managed: CachingDisabled
-    origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac"  # AWS-managed: AllViewerExceptHostHeader
+    # Use AWS-managed AllViewerExceptHostHeader to ensure API Gateway receives the correct Host header
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.api_cors.id
+
+  }
+
+  ordered_cache_behavior {
+    path_pattern     = "/media/*"
+    target_origin_id = "S3-${aws_s3_bucket.media.bucket}"
+
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+
+    # Use AWS-managed Optimized Caching policy for media
+    cache_policy_id = data.aws_cloudfront_cache_policy.caching_optimized.id
   }
 
 
-  # SPA support: redirect 404s to index.html
+  # SPA support: redirect 403 and 404 to index.html
+  # This is necessary because when a user refreshes on a route like /sign-in, 
+  # S3 looks for a folder/file that doesn't exist and returns 403 (due to private bucket) 
+  # or 404. We need CloudFront to serve index.html so React Router can take over.
   custom_error_response {
     error_code            = 404
     response_code         = 200
     response_page_path    = "/index.html"
+    error_caching_min_ttl = 0
   }
 
   custom_error_response {
     error_code            = 403
     response_code         = 200
     response_page_path    = "/index.html"
+    error_caching_min_ttl = 0
   }
 
   restrictions {
@@ -139,4 +182,29 @@ output "cloudfront_url" {
 
 output "api_url" {
   value = aws_apigatewayv2_api.main.api_endpoint
+}
+
+
+
+resource "aws_cloudfront_response_headers_policy" "api_cors" {
+  name = "${var.project_name}-api-cors-policy"
+
+  cors_config {
+    access_control_allow_credentials = false
+
+    access_control_allow_headers {
+      items = ["Authorization", "Content-Type", "X-Requested-With"]
+    }
+
+    access_control_allow_methods {
+      items = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    }
+
+    access_control_allow_origins {
+      items = ["https://claude.ai"]
+    }
+
+    access_control_max_age_sec = 86400
+    origin_override = false   # false = respect headers from FastAPI, only add if missing
+  }
 }

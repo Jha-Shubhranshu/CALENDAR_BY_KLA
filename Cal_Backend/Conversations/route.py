@@ -1,12 +1,13 @@
 # routes/conversations.py
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from typing import List, Optional
 from datetime import datetime, timezone
 
 from Cal_Backend.db.main import get_session
-from Cal_Backend.db.models import Conversation, Note, User, NotebookSource, MessageRole
+from Cal_Backend.db.models import Conversation, Note, User, NotebookSource, MessageRole, Media
+from Cal_Backend.storage.s3 import delete_media
 from Cal_Backend.auth.dependencies import get_current_userC
 from Cal_Backend.Conversations.schemas import (
     ConversationCreate, 
@@ -85,7 +86,9 @@ async def get_conversation(
     query = select(Conversation).where(
         Conversation.id == conversation_id,
         Conversation.user_id == current_user.id
-    ).options(selectinload(Conversation.notes))
+    ).options(
+        selectinload(Conversation.notes).selectinload(Note.media)
+    )
     
     result = await session.execute(query)
     conversation = result.scalar_one_or_none()
@@ -96,6 +99,19 @@ async def get_conversation(
     # Serialize messages (notes in this conversation)
     messages = []
     for note in sorted(conversation.notes, key=lambda n: n.timestamp):
+        # Serialize media/images
+        note_images = []
+        for media in sorted(note.media, key=lambda m: m.position_index):
+            note_images.append({
+                "id": media.id,
+                "file_path": media.file_path,
+                "file_type": media.file_type.value if hasattr(media.file_type, 'value') else str(media.file_type),
+                "file_size": media.file_size,
+                "mime_type": media.mime_type,
+                "original_filename": media.original_filename,
+                "position_index": media.position_index
+            })
+
         msg_dict = {
             "id": note.id,
             "conversation_id": note.conversation_id,
@@ -105,7 +121,8 @@ async def get_conversation(
             "timestamp": note.timestamp,
             "created_at": note.created_at,
             "background_color": note.background_color,
-            "metadata": note.notemetadata if isinstance(note.notemetadata, dict) else {}
+            "metadata": note.notemetadata if isinstance(note.notemetadata, dict) else {},
+            "images": note_images
         }
         messages.append(msg_dict)
     
@@ -168,15 +185,20 @@ async def create_conversation(
 @conversation_router.delete("/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_conversation(
     conversation_id: UUID,
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_userC)
 ):
-    """Delete a conversation and all its associated notes"""
+    """Delete a conversation and all its associated notes and S3 media"""
     from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
     
+    # Fetch conversation with notes and their media to clean up S3
     query = select(Conversation).where(
         Conversation.id == conversation_id,
         Conversation.user_id == current_user.id
+    ).options(
+        selectinload(Conversation.notes).selectinload(Note.media)
     )
     
     result = await session.execute(query)
@@ -184,6 +206,17 @@ async def delete_conversation(
     
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    # Collect all S3 keys for background deletion
+    s3_keys = []
+    for note in conversation.notes:
+        for media in note.media:
+            if media.file_path:
+                s3_keys.append(media.file_path)
+    
+    # Schedule S3 cleanup
+    for key in s3_keys:
+        background_tasks.add_task(delete_media, key)
     
     await session.delete(conversation)
     await session.commit()

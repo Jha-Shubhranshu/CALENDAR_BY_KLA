@@ -60,7 +60,7 @@ resource "aws_lambda_function" "backend" {
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.backend.repository_url}:latest"
 
-  timeout     = 30
+  timeout     = 60
   memory_size = 1024  # bumped from 512 — CPU scales with RAM on Lambda
 
   vpc_config {
@@ -70,14 +70,15 @@ resource "aws_lambda_function" "backend" {
 
   environment {
     variables = {
-      # No password here — DB_PASSWORD is injected at runtime from Secrets Manager.
-      DATABASE_URL         = "postgresql+asyncpg://${var.db_username}@${aws_db_instance.main.endpoint}/${var.db_name}"
+      # Use RDS Proxy endpoint for better connection pooling in Lambda
+      DATABASE_URL         = "postgresql+asyncpg://${var.db_username}@${aws_db_proxy.main.endpoint}/${var.db_name}"
       REDIS_HOST           = aws_elasticache_cluster.main.cache_nodes[0].address
       REDIS_PORT           = "6379"
       JWT_ALGORITHM        = var.jwt_algorithm
       ENVIRONMENT          = var.environment
       SECRETS_NAME         = aws_secretsmanager_secret.app_secrets.name
       S3_BUCKET_NAME       = "${var.project_name}-imports-${data.aws_caller_identity.current.account_id}"
+      S3_MEDIA_BUCKET_NAME = aws_s3_bucket.media.bucket
       SQS_IMPORT_QUEUE_URL = "https://sqs.${var.aws_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${var.project_name}-import-queue"
     }
   }

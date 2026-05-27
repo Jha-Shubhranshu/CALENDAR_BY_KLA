@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ConversationDisplay, NotebookSource } from '../typesOG/conversation.types';
 import { getAllConversations, deleteConversation as deleteConvoApi } from '../api/conversationsAPIAxios';
 
-export function useConversations(source?: NotebookSource) {
+export function useConversations(source?: NotebookSource, onDelete?: () => void) {
   const [conversations, setConversations] = useState<ConversationDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -39,6 +39,7 @@ export function useConversations(source?: NotebookSource) {
       setDeletingId(id);
       await deleteConvoApi(id);
       setConversations(prev => prev.filter(c => c.id !== id));
+      if (onDelete) onDelete();
     } catch (error) {
       console.error('Error deleting conversation:', error);
     } finally {

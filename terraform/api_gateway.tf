@@ -2,13 +2,8 @@ resource "aws_apigatewayv2_api" "main" {
   name          = "${var.project_name}-api"
   protocol_type = "HTTP"
   
-  cors_configuration {
-    allow_origins     = ["https://dtdjg3wim5ilk.cloudfront.net"]
-    allow_methods     = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    allow_headers     = ["content-type", "authorization", "x-requested-with", "accept"]
-    allow_credentials = true
-    max_age           = 300
-  }
+  # CORS is now handled by the backend FastAPI middleware to provide more 
+  # flexibility for cross-site extension requests.
 }
 
 resource "aws_apigatewayv2_stage" "main" {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LogIn, Loader } from 'lucide-react';
+import { LogIn, Loader, CalendarDays } from 'lucide-react';
 
 interface AuthProps {
   onAuthSuccess: () => void;
@@ -17,24 +17,11 @@ export default function Authsignin({ onAuthSuccess }: AuthProps) {
     setLoginError('');
 
     try {
-      // const formData = new FormData();
-      // formData.append('username', email);
-      // formData.append('password', password);
-
-      const payload = {
-      password: password,
-      email: email
-    };
-
-
-
       const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/login`, {
         method: 'POST',
-        headers: {
-        'Content-Type': 'application/json',  // Important!
-        },
-        body: JSON.stringify(payload),
-        credentials: 'include', // Important: Include cookies
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, email }),
+        credentials: 'include',
       });
 
       if (res.ok) {
@@ -42,83 +29,105 @@ export default function Authsignin({ onAuthSuccess }: AuthProps) {
         setPassword('');
         onAuthSuccess();
       } else {
-        // const data = await res.json();
-        // setLoginError(data.detail || 'Login failed');
         const data = await res.json();
-      
-      // Handle FastAPI validation errors properly
-      if (data.detail) {
-        if (Array.isArray(data.detail)) {
-          // Multiple validation errors
-          const errorMessages = data.detail
-            .map((err: any) => err.msg)
-            .join(', ');
-          setLoginError(errorMessages);
+        if (data.detail) {
+          setLoginError(
+            Array.isArray(data.detail)
+              ? data.detail.map((e: any) => e.msg).join(', ')
+              : data.detail
+          );
         } else {
-          setLoginError(data.detail);
+          setLoginError('Login failed');
         }
-      } else {
-        setLoginError('Signup failed');
       }
-    }
     } catch (err) {
-      console.error('Signup error:', err);
-      setLoginError('Network error occurredddd');
+      console.error('Login error:', err);
+      setLoginError('Network error — please check your connection.');
     } finally {
       setIsLoggingIn(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex items-center justify-center p-6">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl p-10 shadow-xl border border-slate-200">
-          <div className="flex justify-center mb-8">
-            <div className="p-4 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full">
-              <LogIn className="w-10 h-10 text-blue-600" />
+
+        {/* Brand mark */}
+        <div className="flex items-center justify-center gap-2.5 mb-8">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+            <CalendarDays className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-xl font-bold tracking-tight text-gray-800 dark:text-gray-100">
+            Calendar by Kla
+          </span>
+        </div>
+
+        <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-xl shadow-blue-900/5 dark:shadow-black/30 border border-gray-100 dark:border-gray-800">
+          <div className="flex justify-center mb-6">
+            <div className="p-3.5 bg-blue-50 dark:bg-blue-900/30 rounded-full">
+              <LogIn className="w-7 h-7 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
 
-          <h1 className="text-3xl font-semibold text-slate-800 text-center mb-8">
-            Sign In
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50 text-center mb-6">
+            Welcome back
           </h1>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Email
               </label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all" placeholder="your@email.com"/>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="you@example.com"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 dark:focus:border-blue-400 transition-all"
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Password
               </label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all" placeholder="••••••••"/>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 dark:focus:border-blue-400 transition-all"
+              />
             </div>
 
             {loginError && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                <p className="text-sm text-red-600">{loginError}</p>
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3.5">
+                <p className="text-sm text-red-600 dark:text-red-400">{loginError}</p>
               </div>
             )}
 
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="w-full py-3 px-6 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all font-medium shadow-lg shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full py-2.5 px-6 mt-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-medium shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
             >
               {isLoggingIn ? (
                 <>
-                  <Loader className="w-5 h-5 animate-spin" />
-                  Signing in...
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Signing in…
                 </>
-              ) : (
-                'Sign In'
-              )}
+              ) : 'Sign in'}
             </button>
           </form>
+
+          <p className="text-sm text-center text-gray-500 dark:text-gray-400 mt-6">
+            Don't have an account?{' '}
+            <a href="/sign-up" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+              Sign up
+            </a>
+          </p>
         </div>
       </div>
     </div>

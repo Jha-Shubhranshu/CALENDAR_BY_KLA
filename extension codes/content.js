@@ -229,59 +229,61 @@ async function buildMessagesFromDOM() {
 async function scrapeConversation() {
   const convId = scrapeConversationId();
   if (!convId) return { error: 'Could not detect conversation ID from URL.' };
-
-  let messages      = [];
-  let apiData       = null;
-  let convCreatedAt = null;
-  let convUpdatedAt = null;
-
+  
+  let apiData = null;
   try {
     const orgId = await getOrgId();
     if (!orgId) throw new Error('Could not resolve organisation ID');
     apiData = await fetchConversationAPI(orgId, convId);
-    const apiMessages = apiData.chat_messages || [];
-    if (apiMessages.length === 0) throw new Error('API returned no messages');
-    messages      = await buildMessagesFromAPI(apiMessages);
-    convCreatedAt = apiData.created_at || null;
-    convUpdatedAt = apiData.updated_at || null;
+    if (!apiData.chat_messages || apiData.chat_messages.length === 0) {
+      throw new Error('API returned no messages');
+    }
   } catch (apiErr) {
-    console.warn('[ConvoSaver] API unavailable, falling back to DOM:', apiErr.message);
-    messages = await buildMessagesFromDOM();
-    if (messages.length === 0) {
-      return { error: 'No messages found. Make sure you are on a Claude conversation page.' };
+    return { error: `Could not fetch conversation from Claude API: ${apiErr.message}` };
+  }
+  
+  // Enrich each message's attachments with base64 image bytes.
+  // We do this here, while we still have the user's session cookies, since
+  // the backend can't reach claude.ai's authenticated endpoints.
+  for (const msg of apiData.chat_messages) {
+    const allAtts = [...(msg.attachments || []), ...(msg.files || [])];
+    for (const att of allAtts) {
+      const url = att.file_url || att.url;
+      if (!url) continue;
+      
+      // Skip non-image attachments unless you want to bring them too.
+      const mime = (att.file_type || '').toLowerCase();
+      const looksImage = mime.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(att.file_name || url);
+      if (!looksImage) continue;
+      
+      try {
+        const data = await fetchBase64(url);  // your existing helper, returns "data:image/...;base64,..."
+        if (data) {
+          att._extension_data = { 
+            data, 
+            fetched_at: new Date().toISOString() 
+          };
+        }
+      } catch (e) {
+        console.warn('[ConvoSaver] failed to fetch attachment', url, e);
+      }
     }
   }
-
-  if (!convCreatedAt || !convUpdatedAt) {
-    const stamps = messages.map(m => m.timestamp).filter(Boolean).sort();
-    if (stamps.length) {
-      convCreatedAt = convCreatedAt || stamps[0];
-      convUpdatedAt = convUpdatedAt || stamps[stamps.length - 1];
-    }
-  }
-
-  const email   = detectEmail();
-  const account = email ? email.split('@')[0] : '';
-  const title   = apiData?.name || scrapeTitle() || 'Untitled Conversation';
-
-  // Schema-compliant array (matches parse_claude_export output)
-  const conversations = [{
-    id         : convId,
-    title      : title,
-    source     : 'claude',
-    account    : account,
-    created_at : convCreatedAt || '',
-    updated_at : convUpdatedAt || '',
-    messages   : messages,
-  }];
-
-  // Wrapper for the popup. `conversations` is the actual payload to send.
-  // The other fields are display metadata used only by popup.js.
+  
+  const conversation = {
+    uuid: apiData.uuid || convId,
+    name: apiData.name || scrapeTitle() || 'Untitled Conversation',
+    summary: apiData.summary || '',
+    created_at: apiData.created_at || '',
+    updated_at: apiData.updated_at || '',
+    account: apiData.account || { uuid: '' },
+    chat_messages: apiData.chat_messages || [],
+  };
+  
   return {
-    conversations  : conversations,
-    detected_email : email,
-    title          : title,
-    message_count  : messages.length,
+    conversations: [conversation],
+    title: conversation.name,
+    message_count: conversation.chat_messages.length,
   };
 }
 

@@ -146,13 +146,18 @@ resource "aws_lambda_function" "import_worker" {
   }
 
   environment {
-    variables = {
-      REDIS_HOST   = aws_elasticache_cluster.main.cache_nodes[0].address
-      REDIS_PORT   = "6379"
-      ENVIRONMENT  = var.environment
-      SECRETS_NAME = aws_secretsmanager_secret.app_secrets.name
+      variables = {
+        DATABASE_URL         = "postgresql+asyncpg://${var.db_username}@${aws_db_proxy.main.endpoint}/${var.db_name}"
+        REDIS_HOST           = aws_elasticache_cluster.main.cache_nodes[0].address
+        REDIS_PORT           = "6379"
+        JWT_ALGORITHM        = var.jwt_algorithm
+        ENVIRONMENT          = var.environment
+        SECRETS_NAME         = aws_secretsmanager_secret.app_secrets.name
+        S3_BUCKET_NAME       = "${var.project_name}-imports-${data.aws_caller_identity.current.account_id}"
+        S3_MEDIA_BUCKET_NAME = aws_s3_bucket.media.bucket
+        SQS_IMPORT_QUEUE_URL = "https://sqs.${var.aws_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${var.project_name}-import-queue"
+      }
     }
-  }
 
   lifecycle {
     ignore_changes = [image_uri]

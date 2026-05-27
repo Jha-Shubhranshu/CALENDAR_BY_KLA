@@ -2,14 +2,17 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CalendarDay } from './CalendarDay';
 import { ProjectFilter } from './ProjectFilter';
-import { useCalendar } from '../hooksOG/useCalendar';
 import type { ProjectDisplay } from '../typesOG/project.types';
+import type { DateActivity } from '../api/calendarAPIAxios';
 
 interface CalendarProps {
   projects: ProjectDisplay[];
   onOpenConversation: (conversationId: string, date?: Date) => void;
   onOpenNote: (noteId: string) => void;
   onOpenProject: (projectId: string, messageId: string) => void;
+  loading?: boolean;
+  getActivityForDate: (date: Date) => DateActivity | null;
+  onMonthChange: (start: Date, end: Date, projectIds?: string[]) => void;
 }
 
 export function Calendar({
@@ -17,6 +20,9 @@ export function Calendar({
   onOpenConversation,
   onOpenNote,
   onOpenProject,
+  loading = false,
+  getActivityForDate,
+  onMonthChange
 }: CalendarProps) {
   // Initialize from localStorage if available
   const [currentDate, setCurrentDate] = useState(() => {
@@ -35,7 +41,6 @@ export function Calendar({
   });
 
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
-  const { loading, loadCalendarData, getActivityForDate } = useCalendar();
 
   // Save to localStorage whenever currentDate changes
   useEffect(() => {
@@ -55,14 +60,8 @@ const monthEnd = useMemo(() => {
 
   // Load calendar data when month or filters change
   useEffect(() => {
-    console.log('📅 Loading calendar data:', {
-      monthStart: monthStart.toISOString().split('T')[0],
-      monthEnd: monthEnd.toISOString().split('T')[0],
-      selectedProjects: selectedProjects.length > 0 ? selectedProjects : undefined,
-      currentDate: currentDate.toISOString().split('T')[0]
-    });
-    loadCalendarData(monthStart, monthEnd, selectedProjects.length > 0 ? selectedProjects : undefined);
-  }, [monthStart, monthEnd, selectedProjects, loadCalendarData]);
+    onMonthChange(monthStart, monthEnd, selectedProjects.length > 0 ? selectedProjects : undefined);
+  }, [monthStart, monthEnd, selectedProjects, onMonthChange]);
 
   // Generate calendar grid
   const calendarDays = useMemo(() => {

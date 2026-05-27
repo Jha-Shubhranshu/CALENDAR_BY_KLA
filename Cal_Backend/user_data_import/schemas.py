@@ -73,3 +73,76 @@ class ImportResponse(BaseModel):
     success: bool
     statistics: ImportStatistics
     message: str
+
+
+
+class ClaudeContentBlock(BaseModel):
+    """One content block inside a Claude chat message."""
+    type: str
+    text: Optional[str] = None
+    start_timestamp: Optional[str] = None
+    stop_timestamp: Optional[str] = None
+    flags: Optional[Any] = None
+    citations: List[Any] = Field(default_factory=list)
+    
+    model_config = {"extra": "allow"}
+
+
+class ClaudeExtensionImageData(BaseModel):
+    """Image bytes the extension fetched on the browser side before posting."""
+    data: str           # base64 data URL: "data:image/png;base64,..."
+    fetched_at: Optional[str] = None
+    
+    model_config = {"extra": "allow"}
+
+
+class ClaudeAttachment(BaseModel):
+    """An attachment/file reference. The extension may enrich with base64 bytes."""
+    file_name: Optional[str] = None
+    file_type: Optional[str] = None
+    file_url: Optional[str] = None
+    file_size: Optional[int] = None
+    extracted_content: Optional[str] = None
+    # Extension-side enrichment with the actual image bytes (base64 data URL)
+    extension_data: Optional[ClaudeExtensionImageData] = Field(default=None, alias="_extension_data")
+    
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class ClaudeChatMessage(BaseModel):
+    """One message in a Claude conversation, native export shape."""
+    uuid: Optional[str] = None
+    text: Optional[str] = ""
+    content: List[ClaudeContentBlock] = Field(default_factory=list)
+    sender: str  # "human" or "assistant"
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    attachments: List[ClaudeAttachment] = Field(default_factory=list)
+    files: List[ClaudeAttachment] = Field(default_factory=list)
+    parent_message_uuid: Optional[str] = None
+    
+    model_config = {"extra": "allow"}
+
+
+class ClaudeAccountRef(BaseModel):
+    """Account reference embedded in a conversation."""
+    uuid: Optional[str] = None
+    email_address: Optional[str] = None
+    
+    model_config = {"extra": "allow"}
+
+
+class ClaudeNativeConversation(BaseModel):
+    """
+    A single conversation in Claude's native export format.
+    Matches the shape returned by Claude's /api/organizations/{org}/chat_conversations/{id}.
+    """
+    uuid: str
+    name: Optional[str] = ""
+    summary: Optional[str] = ""
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    account: Optional[ClaudeAccountRef] = None
+    chat_messages: List[ClaudeChatMessage] = Field(default_factory=list)
+    
+    model_config = {"extra": "allow"}

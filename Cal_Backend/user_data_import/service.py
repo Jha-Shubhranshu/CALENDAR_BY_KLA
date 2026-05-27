@@ -1,5 +1,7 @@
+import base64
 from typing import List, Dict, Any
 from datetime import datetime, timezone
+from Cal_Backend.storage.s3 import upload_media
 from uuid import UUID as UUID  # Fix the alias conflict
 from sqlmodel.ext.asyncio.session import AsyncSession  # Changed import
 
@@ -13,7 +15,9 @@ from Cal_Backend.db.models import (
     Note,
     NotebookSource,
     ContentType,
-    MessageRole
+    MessageRole,
+    Media,
+    MediaType
 )
 
 
@@ -285,17 +289,26 @@ class ImportService:
         timestamp = self._parse_datetime(msg_data.get("timestamp"))
         
         # Merge extension images into metadata if they exist
+        # Extension puts them in metadata.images OR msg_data.images
         metadata = msg_data.get("metadata", {})
-        if msg_data.get("images"):
-            metadata["images"] = msg_data.get("images")
+        
+        # Ensure images list is preserved in metadata
+        images = msg_data.get("images") or metadata.get("images")
+        if images:
+            metadata["images"] = images
             
         parent_id = msg_data.get("parent_id")
         
-        # Validate enums
-        try:
-            role_enum = MessageRole(role.lower())
-        except ValueError:
-            role_enum = MessageRole.NOTE
+        # Validate enums - Force user/assistant roles for extension/import data
+        role_lower = role.lower()
+        if "user" in role_lower or "human" in role_lower:
+            role_enum = MessageRole.USER
+        elif "assistant" in role_lower or "ai" in role_lower or "model" in role_lower:
+            role_enum = MessageRole.ASSISTANT
+        else:
+            # Default to USER for unknown extension roles to ensure visibility 
+            # as a conversation message, but ideally this shouldn't happen.
+            role_enum = MessageRole.USER
         
         try:
             content_type_enum = ContentType(content_type.lower())
@@ -316,7 +329,7 @@ class ImportService:
             role=role_enum,
             timestamp=timestamp_naive,
             parent_message_id=self._parse_uuid(parent_id) if parent_id else None,
-            metadata=metadata,
+            notemetadata=metadata,
             is_categorized=False,  # Newly imported notes are uncategorized
             # CRITICAL: Prevent these from showing up as general "Notes" in calendar/grid
             is_archived=True,
@@ -325,6 +338,55 @@ class ImportService:
         )
         
         self.session.add(note)
+        await self.session.flush()
+
+        # Handle images -> Media table (S3 storage)
+        if images:
+            for idx, img in enumerate(images):
+                img_data = img.get("data")
+                if not img_data:
+                    continue
+
+                try:
+                    # Decode base64
+                    if "," in img_data:
+                        prefix, img_data = img_data.split(",", 1)
+                    else:
+                        prefix = ""
+                    
+                    binary_content = base64.b64decode(img_data)
+                    
+                    # Determine mime type from prefix or default
+                    mime_type = "image/png"
+                    if "image/" in prefix:
+                        # Extract from 'data:image/png;base64'
+                        mime_type = prefix.split(":")[1].split(";")[0]
+                    
+                    # Generate S3 Key
+                    filename = img.get("filename") or f"image_{idx}.png"
+                    # Clean filename
+                    safe_filename = "".join([c if c.isalnum() or c in "._-" else "_" for c in filename])
+                    s3_key = f"media/{self.user.id}/{note.id}/{idx}_{safe_filename}"
+                    
+                    # Upload to S3
+                    success = await upload_media(binary_content, s3_key, content_type=mime_type)
+                    
+                    if success:
+                        media = Media(
+                            note_id=note.id,
+                            user_id=self.user.id,
+                            file_path=s3_key,
+                            file_type=MediaType.IMAGE,
+                            file_size=len(binary_content),
+                            mime_type=mime_type,
+                            original_filename=filename,
+                            position_index=idx
+                        )
+                        self.session.add(media)
+                    else:
+                        print(f">>> SERVICE: Failed to upload image to S3 for note {note.id}")
+                except Exception as e:
+                    print(f">>> SERVICE: Error processing image for S3: {e}")
     
     @staticmethod
     def _parse_datetime(dt_string: Any) -> datetime:

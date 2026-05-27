@@ -8,14 +8,16 @@ interface ConversationsSidebarProps {
   source: NotebookSource;
   onClose: () => void;
   onSelectConversation: (conversationId: string) => void;
+  onDeleteConversation?: () => void;
 }
 
 export function ConversationsSidebar({ 
   source, 
   onClose, 
-  onSelectConversation 
+  onSelectConversation,
+  onDeleteConversation
 }: ConversationsSidebarProps) {
-  const { conversations, loading, deletingId, loadConversations, removeConversation } = useConversations(source);
+  const { conversations, loading, deletingId, removeConversation } = useConversations(source, onDeleteConversation);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -88,7 +90,7 @@ export function ConversationsSidebar({
   };
 
   return (
-    <div className="w-80 h-full bg-white border-r border-gray-200 flex flex-col animate-slide-in-left shadow-lg">
+    <div className="w-80 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col animate-slide-in-left shadow-lg">
       {/* Header */}
       <div className={`p-4 ${getSourceColor()} text-white flex flex-col shadow-md z-10 relative shrink-0`}>
         <div className="flex items-center justify-between mb-2">
@@ -153,37 +155,37 @@ export function ConversationsSidebar({
       </div>
 
       {/* Conversation List */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+            <div className="animate-spin rounded-full h-7 w-7 border-2 border-blue-500 border-t-transparent" />
           </div>
         ) : filteredConversations.length > 0 ? (
-          <div className="space-y-2">
+          <div className="space-y-1">
             {filteredConversations.map((convo) => (
               <div
                 key={convo.id}
-                className="w-full flex items-start gap-2 p-3 hover:bg-gray-100 rounded-lg transition group relative"
+                className="w-full flex items-start gap-2 p-3 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition group relative"
               >
                 <button
                   onClick={() => onSelectConversation(convo.id)}
                   className="flex-1 text-left"
                 >
                   <div className="flex justify-between items-start">
-                    <h3 className="font-medium text-gray-800 truncate group-hover:text-blue-600 flex-1">
+                    <h3 className="font-medium text-sm text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 flex-1">
                       {convo.title}
                     </h3>
                     {convo.account && (
-                      <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded ml-2 shrink-0">
+                      <span className="text-[10px] bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded ml-2 shrink-0">
                         {convo.account}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {new Date(convo.created_at).toLocaleDateString()}
                   </p>
                 </button>
-                
+
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -192,22 +194,21 @@ export function ConversationsSidebar({
                     }
                   }}
                   disabled={deletingId === convo.id}
-                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition disabled:opacity-50"
+                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition disabled:opacity-50"
                   title="Delete conversation"
                 >
-                  {deletingId === convo.id ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Trash2 size={16} />
-                  )}
+                  {deletingId === convo.id
+                    ? <Loader2 size={15} className="animate-spin" />
+                    : <Trash2 size={15} />
+                  }
                 </button>
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-400">
-            <MessageSquare size={48} className="mx-auto mb-2 opacity-50" />
-            <p>No conversations found</p>
+          <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+            <MessageSquare size={40} className="mx-auto mb-2 opacity-40" />
+            <p className="text-sm">No conversations found</p>
             {conversations.length > 0 && <p className="text-xs mt-1">Try adjusting your filters</p>}
           </div>
         )}

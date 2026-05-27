@@ -13,18 +13,66 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import logging
 
-
-
-
-
-
-
-
-
+logger = logging.getLogger(__name__)
 
 def register_middleware(app: FastAPI):
     import os
     env = os.getenv("ENVIRONMENT", "production").lower()
+
+    # Register custom @middleware decorators FIRST.
+    # They will be wrapped INSIDE CORSMiddleware (added below), which is what we want
+    # so CORSMiddleware sees every request before any other custom middleware.
+
+    @app.middleware('http')
+    async def debug_pre_cors_logging(request: Request, call_next):
+        print("\n" + "="*80)
+        print(f"DEBUG LOG: {request.method} {request.url.path}")
+        print(f"Origin: {request.headers.get('origin')}")
+        print(f"Access-Control-Request-Method: {request.headers.get('access-control-request-method')}")
+        print(f"Access-Control-Request-Headers: {request.headers.get('access-control-request-headers')}")
+        print("="*80 + "\n")
+        try:
+            response = await call_next(request)
+            print(f"DEBUG RESPONSE: {response.status_code} for {request.url.path}")
+            return response
+        except Exception as e:
+            print(f"DEBUG ERROR in middleware chain: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
+
+    @app.middleware('http')
+    async def custom_logging(request: Request, call_next):
+        start_time = time.time()
+        try:
+            response = await call_next(request)
+        except Exception as e:
+            logger.error(f"Middleware Error: {str(e)}", exc_info=True)
+            raise
+        processing_time = time.time() - start_time
+        client_host = request.client.host if request.client else "unknown"
+        client_port = request.client.port if request.client else "0"
+        print(f"{client_host}:{client_port}-{request.method}-{request.url.path}-{response.status_code} completed after {processing_time}s")
+        return response
+
+    @app.middleware('http')
+    async def authorization(request: Request, call_next):
+        public_paths = [
+            "/api/v1/auth/signup",
+            "/api/v1/auth/login",
+            "/api/v1/ArjunJson/api/import/json",
+            "/api/v1/auth/register",
+            "/api/v1/ArjunJson/extension/ingest",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+        ]
+        path = request.url.path.rstrip('/') if request.url.path != '/' else '/'
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        if path in [p.rstrip('/') for p in public_paths]:
+            return await call_next(request)
+        return await call_next(request)
 
     # Define origins
     origins = [
@@ -38,115 +86,18 @@ def register_middleware(app: FastAPI):
         "https://dtdjg3wim5ilk.cloudfront.net",
     ]
 
-    # CORS MUST BE FIRST
-    app.add_middleware( 
+    # CORS LAST so it becomes the OUTERMOST layer (last-added = first-to-run in Starlette).
+    # This way it sees every request before the auth/logging middleware,
+    # and can respond to OPTIONS preflights immediately with the configured headers.
+    app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"], # Always allow * for dev to fix chrome-extension:// blocking
-        allow_origin_regex=r"https://calendar-by-kla.*\.vercel\.app",
-        allow_methods=["*"],
-        allow_headers=["*"],
-        allow_credentials=True,
-        expose_headers=["*"]
-    )
-
-    @app.middleware('http')
-    async def debug_pre_cors_logging(request: Request, call_next):
-        """
-        Ultra-verbose logging that runs BEFORE everything else.
-        Prints directly to console using print() to bypass any logging config issues.
-        """
-        print("\n" + "="*80)
-        print(f"DEBUG LOG: {request.method} {request.url.path}")
-        print(f"Origin: {request.headers.get('origin')}")
-        print(f"Access-Control-Request-Method: {request.headers.get('access-control-request-method')}")
-        print(f"Access-Control-Request-Headers: {request.headers.get('access-control-request-headers')}")
-        print("All Headers:")
-        for k, v in request.headers.items():
-            print(f"  {k}: {v}")
-        print("="*80 + "\n")
-        
-        try:
-            response = await call_next(request)
-            print(f"DEBUG RESPONSE: {response.status_code} for {request.url.path}")
-            return response
-        except Exception as e:
-            print(f"DEBUG ERROR in middleware chain: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            raise e
-
-    @app.middleware('http')
-    async def custom_logging(request: Request, call_next):
-        start_time = time.time()
-        
-        # Log request details for debugging
-        logger.info(f"Incoming Request: {request.method} {request.url.path}")
-        logger.info(f"Headers: {dict(request.headers)}")
-        
-        try:
-            response = await call_next(request)
-        except Exception as e:
-            logger.error(f"Middleware Error: {str(e)}", exc_info=True)
-            raise e
-
-        processing_time = time.time() - start_time
-        client_host = request.client.host if request.client else "unknown"
-        client_port = request.client.port if request.client else "0"
-        
-        message = f"{client_host}:{client_port}-{request.method}-{request.url.path}-{response.status_code} completed after {processing_time}s"
-        print(message)
-        return response
-    
-    @app.middleware('http')
-    async def authorization(request: Request, call_next):
-        # Define paths that don't require authorization
-        public_paths = [
-            "/api/v1/auth/signup",
-            "/api/v1/auth/login",
-            "/api/v1/ArjunJson/api/import/json",
-            "/api/v1/auth/register",
-            "/api/v1/ArjunJson/extension/ingest", # Allow extension preflight/requests if needed, though TokenBearer handles auth
-            "/docs",
-            "/redoc",
-            "/openapi.json"
-        ]
-        
-        # Normalize path by removing trailing slash for comparison
-        path = request.url.path.rstrip('/') if request.url.path != '/' else '/'
-        
-        # IMPORTANT: Allow all OPTIONS requests (preflight) to pass through
-        if request.method == "OPTIONS":
-            response = await call_next(request)
-            return response
-        
-        # Check if the current path is in public paths
-        if path in [p.rstrip('/') for p in public_paths]:
-            response = await call_next(request)
-            return response
-        
-        # Check for authorization in either header or cookies
-        has_auth_header = "authorization" in request.headers
-        # Adjust these cookie names based on what your login endpoint sets
-        has_auth_cookie = "access_token" in request.cookies
-        
-        # if not has_auth_header and not has_auth_cookie:
-        #     return JSONResponse(
-        #         status_code=401,
-        #         content={
-        #             "message": "Authentication required",
-        #             "resolution": "Please provide authorization header or valid session cookie"
-        #         }
-        #     )
-            
-        response = await call_next(request)
-        return response
-
-    # app.add_middleware(
-    #     TrustedHostMiddleware,
-    #     allowed_hosts=["localhost", "127.0.0.1", "bookly-api-dc03.onrender.com", "0.0.0.0", "calendar-by-kla.onrender.com", "*.onrender.com"],
-    # )
-    
-    
+        allow_origins=origins,
+        allow_origin_regex=r"chrome-extension://.*",
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=["Authorization", "Content-Type", "X-Requested-With"],  # explicit, not "*"
+        allow_credentials=False,   # extensions use Bearer tokens, not cookies
+        expose_headers=["Content-Length", "X-Request-ID"],  # explicit, not "*"
+    )    
     
     
     

@@ -1,12 +1,13 @@
 # routes/notes.py
 from sqlalchemy import select
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from typing import List, Optional
 from datetime import datetime, timezone
 from Cal_Backend.db.main import get_session
-from Cal_Backend.db.models import Note, NoteLabel, Label, User, ContentType,MessageRole
+from Cal_Backend.db.models import Note, NoteLabel, Label, User, ContentType,MessageRole, Media
+from Cal_Backend.storage.s3 import delete_media
 from Cal_Backend.auth.dependencies import get_current_userC
 from Cal_Backend.Note.schemas import NoteCreate, NoteUpdate, NoteResponse, NoteListResponse
 
@@ -300,20 +301,31 @@ async def update_note(
     return note_dict
 
 @note_router.delete("/delnote/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_note( note_id: UUID, session: AsyncSession = Depends(get_session), current_user: User = Depends(get_current_userC)):
-    """Delete a note"""
-    from sqlalchemy import select, delete
+async def delete_note(
+    note_id: UUID,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_userC)
+):
+    """Delete a note and its associated S3 media"""
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
     
     query = select(Note).where(
         Note.id == note_id,
         Note.user_id == current_user.id
-    )
+    ).options(selectinload(Note.media))
     
     result = await session.execute(query)
     note = result.scalar_one_or_none()
     
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
+    
+    # Schedule S3 media cleanup
+    for media in note.media:
+        if media.file_path:
+            background_tasks.add_task(delete_media, media.file_path)
     
     await session.delete(note)
     await session.commit()

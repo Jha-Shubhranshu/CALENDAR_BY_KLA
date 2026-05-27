@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { MoreVertical, FolderPlus, FolderMinus, Trash2, Copy, Bot, Sparkles } from 'lucide-react';
 import type { MessageDisplay, NotebookSource } from '../typesOG/conversation.types';
 import { useClickOutside } from '../hooksOG/Intelligenceeffects/useClickOutside';
+import { ImageGrid } from './ImageGrid';
 
 interface MessageProps {
   message: MessageDisplay;
@@ -132,56 +133,61 @@ export function Message({
   // --- ChatGPT Style ---
   if (source === 'chatgpt') {
     return (
-      <div className={`group relative flex w-full ${isUser ? 'justify-end' : 'justify-start gap-4'} mb-6`}>
-        {/* Avatar for Assistant */}
-        {!isUser && (
-          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#10a37f] flex items-center justify-center text-white mt-1">
-            <Sparkles size={16} />
-          </div>
+      <div className={`group relative flex w-full flex-col ${isUser ? 'items-end' : 'items-start'} mb-6`}>
+        {message.images && message.images.length > 0 && (
+          <ImageGrid images={message.images} />
         )}
-
-        {/* Message Bubble/Content */}
-        <div 
-          className={`relative max-w-[85%] ${
-            isUser 
-              ? 'bg-[#f4f4f4] text-gray-900 rounded-3xl px-5 py-3' 
-              : 'text-gray-900 pt-1'
-          }`}
-          onDoubleClick={handleDoubleClick}
-          onContextMenu={handleContextMenu}
-        >
-          <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-gray-800 prose-pre:text-white prose-code:text-gray-800 prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none [&>ul]:list-disc [&>ol]:list-decimal">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-          </div>
-
-          {/* Timestamp */}
-          <div className={`mt-1 text-[10px] text-gray-400 ${isUser ? 'text-right' : 'text-left'}`}>
-            {new Date(message.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-          </div>
-
-          {/* Action Trigger */}
-          {showActions && (
-            <button
-              className="absolute -right-8 top-0 p-1 rounded-full hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400"
-              onClick={(e) => {
-                e.stopPropagation();
-                setMenuTop(24);
-                setShowMenu(!showMenu);
-              }}
-            >
-              <MoreVertical size={16} />
-            </button>
-          )}
-
-          {/* Menu */}
-          {showMenu && showActions && (
-            <div 
-              className="absolute right-0 z-50"
-              style={{ top: menuTop }}
-            >
-               {renderActionMenu()}
+        <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start gap-4'}`}>
+          {/* Avatar for Assistant */}
+          {!isUser && (
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#10a37f] flex items-center justify-center text-white mt-1">
+              <Sparkles size={16} />
             </div>
           )}
+
+          {/* Message Bubble/Content */}
+          <div 
+            className={`relative max-w-[85%] ${
+              isUser 
+                ? 'bg-[#f4f4f4] text-gray-900 rounded-3xl px-5 py-3' 
+                : 'text-gray-900 pt-1'
+            }`}
+            onDoubleClick={handleDoubleClick}
+            onContextMenu={handleContextMenu}
+          >
+            <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-gray-800 prose-pre:text-white prose-code:text-gray-800 prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none [&>ul]:list-disc [&>ol]:list-decimal">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+            </div>
+
+            {/* Timestamp */}
+            <div className={`mt-1 text-[10px] text-gray-400 ${isUser ? 'text-right' : 'text-left'}`}>
+              {new Date(message.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </div>
+
+            {/* Action Trigger */}
+            {showActions && (
+              <button
+                className="absolute -right-8 top-0 p-1 rounded-full hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuTop(24);
+                  setShowMenu(!showMenu);
+                }}
+              >
+                <MoreVertical size={16} />
+              </button>
+            )}
+
+            {/* Menu */}
+            {showMenu && showActions && (
+              <div 
+                className="absolute right-0 z-50"
+                style={{ top: menuTop }}
+              >
+                 {renderActionMenu()}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -190,56 +196,61 @@ export function Message({
   // --- Claude Style ---
   if (source === 'claude') {
     return (
-      <div className={`group relative flex w-full ${isUser ? 'justify-end' : 'justify-start gap-4'} mb-8`}>
-        {/* Avatar for Assistant */}
-        {!isUser && (
-          <div className="flex-shrink-0 w-8 h-8 rounded bg-[#D97757] flex items-center justify-center text-white mt-1">
-            <Bot size={18} />
-          </div>
+      <div className={`group relative flex w-full flex-col ${isUser ? 'items-end' : 'items-start'} mb-8`}>
+        {message.images && message.images.length > 0 && (
+          <ImageGrid images={message.images} />
         )}
-
-        {/* Message Bubble/Content */}
-        <div 
-          className={`relative max-w-[85%] ${
-            isUser 
-              ? 'bg-[#E6E4DD] text-gray-900 rounded-2xl px-5 py-3 font-sans' 
-              : 'text-gray-900 pt-1 font-serif text-[15px] leading-relaxed'
-          }`}
-          onDoubleClick={handleDoubleClick}
-          onContextMenu={handleContextMenu}
-        >
-          <div className="prose prose-sm max-w-none prose-p:leading-relaxed font-serif prose-headings:font-serif prose-code:font-mono prose-pre:bg-[#f4f4f3] prose-pre:text-gray-900 prose-code:text-[#c45533] prose-code:bg-[#f0eee6] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none [&>ul]:list-disc [&>ol]:list-decimal">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-          </div>
-
-          {/* Timestamp */}
-          <div className={`mt-1 text-[10px] text-gray-500 ${isUser ? 'text-right' : 'text-left'}`}>
-            {new Date(message.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-          </div>
-
-          {/* Action Trigger */}
-          {showActions && (
-            <button
-              className="absolute -right-8 top-0 p-1 rounded-full hover:bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500"
-              onClick={(e) => {
-                e.stopPropagation();
-                setMenuTop(24);
-                setShowMenu(!showMenu);
-              }}
-            >
-              <MoreVertical size={16} />
-            </button>
-          )}
-
-          {/* Menu */}
-          {showMenu && showActions && (
-            <div 
-              className="absolute right-0 z-50"
-              style={{ top: menuTop }}
-            >
-               {renderActionMenu()}
+        <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start gap-4'}`}>
+          {/* Avatar for Assistant */}
+          {!isUser && (
+            <div className="flex-shrink-0 w-8 h-8 rounded bg-[#D97757] flex items-center justify-center text-white mt-1">
+              <Bot size={18} />
             </div>
           )}
+
+          {/* Message Bubble/Content */}
+          <div 
+            className={`relative max-w-[85%] ${
+              isUser 
+                ? 'bg-[#E6E4DD] text-gray-900 rounded-2xl px-5 py-3 font-sans' 
+                : 'text-[#cfcdc0] pt-1 font-serif text-[15px] leading-relaxed'
+            }`}
+            onDoubleClick={handleDoubleClick}
+            onContextMenu={handleContextMenu}
+          >
+            <div className="prose prose-sm max-w-none prose-p:leading-relaxed font-serif prose-headings:font-serif prose-code:font-mono prose-pre:bg-[#f4f4f3] prose-pre:text-gray-900 prose-code:text-[#c45533] prose-code:bg-[#f0eee6] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none [&>ul]:list-disc [&>ol]:list-decimal">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+            </div>
+
+            {/* Timestamp */}
+            <div className={`mt-1 text-[10px] text-gray-500 ${isUser ? 'text-right' : 'text-left'}`}>
+              {new Date(message.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </div>
+
+            {/* Action Trigger */}
+            {showActions && (
+              <button
+                className="absolute -right-8 top-0 p-1 rounded-full hover:bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuTop(24);
+                  setShowMenu(!showMenu);
+                }}
+              >
+                <MoreVertical size={16} />
+              </button>
+            )}
+
+            {/* Menu */}
+            {showMenu && showActions && (
+              <div 
+                className="absolute right-0 z-50"
+                style={{ top: menuTop }}
+              >
+                 {renderActionMenu()}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -289,7 +300,10 @@ export function Message({
   };
 
   return (
-    <div className="group relative">
+    <div className={`group relative flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+      {message.images && message.images.length > 0 && (
+        <ImageGrid images={message.images} />
+      )}
       <div
         className={`
           bg-white border border-gray-200
@@ -297,6 +311,7 @@ export function Message({
           hover:shadow-md transition-shadow
           cursor-pointer
           relative
+          w-full
           ${message.background_color ? '' : 'bg-white'}
         `}
         style={{ backgroundColor: message.background_color }}

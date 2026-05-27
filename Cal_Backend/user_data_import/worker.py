@@ -1,12 +1,11 @@
 """
 Background worker for import jobs.
-
 Called from two places:
   - handler_worker.py  (SQS-triggered Lambda, production)
   - FastAPI BackgroundTasks  (local dev, when SQS is not configured)
-
 Both paths converge at process_import_job().
 """
+
 import json
 import logging
 from datetime import datetime, timezone
@@ -25,7 +24,12 @@ logger = logging.getLogger(__name__)
 
 async def _make_session() -> AsyncSession:
     from Cal_Backend.db.main import engine
-    Session = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+    Session = sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
     return Session()
 
 
@@ -41,15 +45,21 @@ async def _write_status(
     result = await session.execute(
         select(ImportJob).where(ImportJob.id == UUID(job_id))
     )
+
     job = result.scalar_one_or_none()
+
     if job:
         job.status = status
         job.processed_items = processed
+
         if result_stats is not None:
             job.result_stats = result_stats
+
         if error is not None:
             job.error_message = error
+
         job.updated_at = datetime.now(timezone.utc)
+
         session.add(job)
         await session.commit()
 
@@ -60,10 +70,13 @@ async def _write_status(
         "processed_items": processed,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+
     if result_stats:
         redis_payload["result_stats"] = result_stats
+
     if error:
         redis_payload["error"] = error
+
     await set_job_status(job_id, redis_payload)
 
 
@@ -75,10 +88,16 @@ async def process_import_job(
     in_memory_data: Optional[Any] = None,
 ) -> None:
     print(f"\n>>> WORKER STARTING: Job {job_id} ({job_type})")
+
     session = await _make_session()
+
     try:
-        result = await session.execute(select(User).where(User.id == UUID(user_id)))
+        result = await session.execute(
+            select(User).where(User.id == UUID(user_id))
+        )
+
         user = result.scalar_one_or_none()
+
         if not user:
             print(f">>> WORKER ERROR: User {user_id} not found")
             raise ValueError(f"User {user_id} not found")
@@ -86,31 +105,50 @@ async def process_import_job(
         job_result = await session.execute(
             select(ImportJob).where(ImportJob.id == UUID(job_id))
         )
+
         job = job_result.scalar_one_or_none()
         total = job.total_items if job else 0
 
-        await _write_status(session, job_id, ImportJobStatus.PROCESSING, 0, total)
+        await _write_status(
+            session,
+            job_id,
+            ImportJobStatus.PROCESSING,
+            0,
+            total,
+        )
 
-        # Resolve data
+        # ─── Resolve data ────────────────────────────────────────────────
         if in_memory_data is not None:
             data = in_memory_data
+
         else:
             print(f">>> WORKER: Downloading data from S3 {s3_key}")
+
             from Cal_Backend.storage.s3 import download_import_data
+
             raw = await download_import_data(s3_key)
             payload = json.loads(raw)
+
             data = payload["data"]
 
         print(f">>> WORKER: Processing {len(data)} items")
 
-        # Run the appropriate import service
+        # ─── Dispatch by job type ────────────────────────────────────────
         if job_type in ("google_keep", "google_keep_bulk"):
-            from Cal_Backend.user_data_import.keep_service import GoogleKeepImportService
-            from Cal_Backend.user_data_import.notesimportschemas import GoogleKeepNote
+
+            from Cal_Backend.user_data_import.keep_service import (
+                GoogleKeepImportService,
+            )
+            from Cal_Backend.user_data_import.notesimportschemas import (
+                GoogleKeepNote,
+            )
 
             keep_notes = [GoogleKeepNote(**n) for n in data]
+
             service = GoogleKeepImportService(session, user)
+
             stats = await service.import_notes(keep_notes)
+
             await session.commit()
 
             result_stats = {
@@ -123,32 +161,74 @@ async def process_import_job(
                 "errors": stats.errors,
             }
 
-        elif job_type in ("json", "extension_ingest"):
-            from Cal_Backend.user_data_import.service import ImportService, validate_import_data
+        elif job_type == "extension_ingest":
 
-            if job_type == "json":
-                data = validate_import_data(data)
-            
+            from Cal_Backend.user_data_import.schemas import (
+                ClaudeNativeConversation,
+            )
+            from Cal_Backend.user_data_import.extension_service import (
+                ClaudeExtensionImportService,
+            )
+
+            conversations = [
+                ClaudeNativeConversation(**c)
+                for c in data
+            ]
+
+            service = ClaudeExtensionImportService(session, user)
+
+            result_stats = await service.import_conversations(
+                conversations
+            )
+
+        elif job_type == "json":
+
+            from Cal_Backend.user_data_import.service import (
+                ImportService,
+                validate_import_data,
+            )
+
+            data = validate_import_data(data)
+
             service = ImportService(session, user)
+
             result_stats = await service.import_conversations(data)
 
         else:
             raise ValueError(f"Unknown job_type: {job_type}")
 
         await _write_status(
-            session, job_id, ImportJobStatus.COMPLETED,
-            processed=len(data), total=len(data),
+            session,
+            job_id,
+            ImportJobStatus.COMPLETED,
+            processed=len(data),
+            total=len(data),
             result_stats=result_stats,
         )
-        print(f">>> WORKER SUCCESS: Job {job_id} completed. Stats: {result_stats}")
+
+        print(
+            f">>> WORKER SUCCESS: Job {job_id} completed. "
+            f"Stats: {result_stats}"
+        )
 
     except Exception as exc:
+
         import traceback
+
         print(f">>> WORKER CRASH: {str(exc)}")
+
         traceback.print_exc()
+
         try:
-            await _write_status(session, job_id, ImportJobStatus.FAILED, error=str(exc))
+            await _write_status(
+                session,
+                job_id,
+                ImportJobStatus.FAILED,
+                error=str(exc),
+            )
+
         except Exception:
             pass
+
     finally:
         await session.close()
