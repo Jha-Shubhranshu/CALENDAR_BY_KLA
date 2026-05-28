@@ -1,5 +1,6 @@
-import { Menu, Moon, Sun, Search, Settings, RefreshCw } from 'lucide-react';
+import { Menu, Moon, Sun, Search, Settings, RefreshCw, LogOut } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useUserContext } from '../context/AuthContext';
 
 interface HeaderProps {
   searchQuery: string;
@@ -9,6 +10,7 @@ interface HeaderProps {
 
 export function Header({ searchQuery, onSearchChange, onToggleSidebar }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
+  const { logout, user } = useUserContext();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-30 h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700/60 shadow-sm">
@@ -75,6 +77,18 @@ export function Header({ searchQuery, onSearchChange, onToggleSidebar }: HeaderP
               ? <Sun size={18} className="text-amber-400" />
               : <Moon size={18} className="text-gray-500" />
             }
+          </button>
+
+          <div className="h-8 w-px bg-gray-200 dark:bg-gray-700 mx-1" />
+
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-all group"
+            aria-label="Logout"
+            title="Logout"
+          >
+            <span className="hidden md:block text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">Logout</span>
+            <LogOut size={18} />
           </button>
         </div>
       </div>

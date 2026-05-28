@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { LogIn, Loader, CalendarDays } from 'lucide-react';
+import { useUserContext } from '../../context/AuthContext';
 
 interface AuthProps {
   onAuthSuccess: () => void;
@@ -10,6 +11,7 @@ export default function Authsignin({ onAuthSuccess }: AuthProps) {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const { checkAuthUser } = useUserContext();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +29,7 @@ export default function Authsignin({ onAuthSuccess }: AuthProps) {
       if (res.ok) {
         setEmail('');
         setPassword('');
+        await checkAuthUser();
         onAuthSuccess();
       } else {
         const data = await res.json();

@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Request
 from .schemas import UserCreateModel, UserCreatedModel, UserLoginModel, UserAfterCreationModel
 from .service import UserService
 from Cal_Backend.db.main import get_session
 from sqlmodel.ext.asyncio.session import AsyncSession 
 from fastapi.exceptions import HTTPException
-from .utils import create_access_tokens, decode_token, verify_password, clear_auth_cookies, set_auth_cookies  
+from .utils import create_access_tokens, decode_token, verify_password, clear_auth_cookies, set_auth_cookies, ACCESS_TOKEN_EXPIRY, REFRESH_TOKEN_EXPIRY
 from fastapi.responses import JSONResponse
 from datetime import timedelta, datetime
 from .dependencies import RefreshTokenBearer, AccessTokenBearerC, get_current_userC, RoleChecker
@@ -22,8 +22,6 @@ User_role_checker = RoleChecker(['user'])
 Admin_User_role_checker = RoleChecker(['admin','user'])
 # from src.emails import mail, create_message
 
-REFRESH_TOKEN_EXPIRY = 2
-ACCESS_TOKEN_EXPIRY = 3600  # 1 hour in seconds
 REFRESH_EARLY_THRESHOLD = 6 * 3600  # 6 hours in seconds
 
 @auth_router.post('/signup', response_model=UserAfterCreationModel, status_code=status.HTTP_201_CREATED)
@@ -64,7 +62,7 @@ async def login_users(U_Creds: UserLoginModel, session: AsyncSession = Depends(g
                     'user_uid': str(user.id)
                 },
                 refresh=True,
-                expiry=timedelta(days=REFRESH_TOKEN_EXPIRY)
+                expiry=timedelta(seconds=REFRESH_TOKEN_EXPIRY)
             )
             
             # Create response
@@ -109,7 +107,7 @@ async def get_new_access_token(token_details: dict = Depends(RefreshTokenBearer(
             new_refresh_token = create_access_tokens(
                 user_data=token_details['user'],
                 refresh=True,
-                expiry=timedelta(days=REFRESH_TOKEN_EXPIRY)
+                expiry=timedelta(seconds=REFRESH_TOKEN_EXPIRY)
             )
             
             # Blacklist old refresh token
@@ -146,11 +144,20 @@ async def health_check():
     return {"status": "ok"}
 
 @auth_router.post("/logout")
-async def revoke_token(token_details: dict = Depends(AccessTokenBearerC())):
-    jti = token_details['jti']
-    
+async def revoke_token(request: Request, token_details: dict = Depends(AccessTokenBearerC())):
     # Blacklist current access token
+    jti = token_details['jti']
     await add_jti_to_blocklist(jti)
+    
+    # Also attempt to blacklist refresh token if it exists in cookies
+    refresh_token = request.cookies.get("refresh_token")
+    if refresh_token:
+        try:
+            refresh_token_details = decode_token(refresh_token)
+            await add_jti_to_blocklist(refresh_token_details['jti'], is_refresh=True)
+        except Exception:
+            # If refresh token is invalid or already expired, we can ignore it
+            pass
     
     # Create response and clear cookies using helper function
     response = JSONResponse(

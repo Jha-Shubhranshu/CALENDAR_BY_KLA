@@ -1,11 +1,12 @@
 //this is the most beautiful file of them all, the central file to all of the frontend application, the centre of the 2nd system, 1st being the backend, the realisation which struck me was that the organisation of frontend and the backend was not the same thing just at different depths but rather two independent systems working parallely.
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { createContext, useContext, useEffect, useState } from "react";
 import type { IContextType, IUser } from "../typesOG/note.types";
 import { getCurrentUser } from "../api/notesAPIAxios";
 import { INITIAL_USER } from "../typesOG/note.types";
 import { INITIAL_STATE } from "../typesOG/note.types";
+import axios from "axios";
 
 
 
@@ -14,9 +15,32 @@ const AuthContext = createContext<IContextType>(INITIAL_STATE);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState<IUser>(INITIAL_USER);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Set up axios interceptor for global 401/403 handling
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+          console.warn("Session expired or unauthorized, redirecting to sign-in...");
+          setIsAuthenticated(false);
+          setUser(INITIAL_USER);
+          
+          const publicPaths = ["/sign-in", "/sign-up", "/"];
+          if (!publicPaths.includes(window.location.pathname)) {
+            navigate("/sign-in");
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => axios.interceptors.response.eject(interceptor);
+  }, [navigate]);
 
   const checkAuthUser = async () => {
   setIsLoading(true);
@@ -41,12 +65,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log("getCurrentUser failed or returned error"); // Debug
     setIsAuthenticated(false);
     setUser(INITIAL_USER);
+    
+    // Redirect if on protected page
+    const publicPaths = ["/sign-in", "/sign-up", "/"];
+    if (!publicPaths.includes(location.pathname)) {
+      navigate("/sign-in");
+    }
+    
     return false;
     
   } catch (error) {
     console.error("Auth check failed:", error);
     setIsAuthenticated(false);
     setUser(INITIAL_USER);
+    
+    const publicPaths = ["/sign-in", "/sign-up", "/"];
+    if (!publicPaths.includes(location.pathname)) {
+      navigate("/sign-in");
+    }
+    
     return false;
   } finally {
     setIsLoading(false);

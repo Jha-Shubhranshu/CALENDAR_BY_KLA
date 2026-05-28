@@ -22,10 +22,14 @@ resource "aws_iam_role" "github_actions_deploy" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          # Limits which repos can assume this role
+          # THE FIX: this now points at the single monorepo, not the two old repos.
+          # Match the repo's casing EXACTLY as it appears on GitHub.
           "token.actions.githubusercontent.com:sub" = [
-            "repo:Jha-Shubhranshu/Calendar_By_Kla_Prod_FrontEnd:*",
-            "repo:Jha-Shubhranshu/-Calendar_By_Kla_Prod_BackEnd:*"
+            "repo:Jha-Shubhranshu/CALENDAR_BY_KLA:*"
+
+            # Tighter alternative (deploys only run on master anyway) — you can
+            # replace the line above with this to only allow the master branch:
+            # "repo:Jha-Shubhranshu/CALENDAR_BY_KLA:ref:refs/heads/master"
           ]
         }
       }

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { Upload, CheckCircle, XCircle, Loader } from 'lucide-react';
+import { useUserContext } from '../context/AuthContext';
 
 interface UploadResponse {
   success: boolean;
@@ -22,6 +23,7 @@ export default function DragDropFiles({ onLogout }: DragDropFilesPropsSchema) {
   const [response, setResponse] = useState<UploadResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { logout } = useUserContext();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -119,16 +121,7 @@ export default function DragDropFiles({ onLogout }: DragDropFilesPropsSchema) {
   };
 
   const handleLogoutClick = async () => {
-    try {
-      await fetch('/api/v1/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } catch (err) {
-      console.error('Logout error:', err);
-    } finally {
-      onLogout();
-    }
+    await logout();
   };
 
   return (

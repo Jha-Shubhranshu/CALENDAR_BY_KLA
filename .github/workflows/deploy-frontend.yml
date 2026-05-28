@@ -1,0 +1,68 @@
+name: Deploy Backend to AWS
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "Cal_Backend/**"                      # only run when the backend changed
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: calendar-by-kla-backend
+  LAMBDA_FUNCTION_NAME: calendar-by-kla-backend
+  ROLE_ARN: arn:aws:iam::099210689603:role/github-actions-deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        working-directory: Cal_Backend         # <-- see note below about your Dockerfile location
+        env:
+          # FIX: original was "steps.login-ecr.registry" (missing .outputs), which is empty.
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Update Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --image-uri ${{ steps.build-image.outputs.image }}
+
+# ----------------------------------------------------------------------------
+# IMPORTANT about `working-directory: Cal_Backend`:
+#   This assumes your Dockerfile AND .dockerignore live inside Cal_Backend/.
+#   You currently have a .dockerignore at the REPO ROOT (see your folder
+#   screenshot), so confirm one of these:
+#
+#   Option A (recommended): move Dockerfile + .dockerignore into Cal_Backend/.
+#                           Keep working-directory: Cal_Backend  (as above).
+#
+#   Option B: Dockerfile stays at the root and references Cal_Backend/ paths.
+#             Then DELETE the working-directory line and build from root:
+#               docker build -t ... -f Dockerfile .
+# ----------------------------------------------------------------------------

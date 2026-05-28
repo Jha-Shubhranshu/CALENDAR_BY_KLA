@@ -9,8 +9,8 @@ from Cal_Backend.config import Config
 logger = logging.getLogger(__name__)
 
 # TTL Constants
-ACCESS_TOKEN_EXPIRY  = 3600          # 1 hour
-REFRESH_TOKEN_EXPIRY = 2 * 24 * 3600 # 2 days
+ACCESS_TOKEN_EXPIRY  = 30 * 24 * 3600 # 30 days
+REFRESH_TOKEN_EXPIRY = 30 * 24 * 3600 # 30 days
 IMPORT_JOB_TTL       = 24 * 3600     # 24 hours
 
 # Legacy constant for backward compatibility

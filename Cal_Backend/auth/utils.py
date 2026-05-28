@@ -15,7 +15,8 @@ passwd_context = CryptContext(
     schemes=['argon2', 'bcrypt']
 )
 
-ACCESS_TOKEN_EXPIRY = 3600
+ACCESS_TOKEN_EXPIRY = 30 * 24 * 3600  # 30 days in seconds
+REFRESH_TOKEN_EXPIRY = 30 * 24 * 3600  # 30 days in seconds
 
 def generate_passwd_hash(password: str) -> str:
     hash = passwd_context.hash(password)
@@ -94,7 +95,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str =
         response.set_cookie(
             key="refresh_token", 
             value=refresh_token,
-            max_age=2 * 24 * 3600,  # 2 days in seconds
+            max_age=REFRESH_TOKEN_EXPIRY,
             httponly=True,
             secure=True,  # MUST be True for SameSite=None
             samesite="none",
