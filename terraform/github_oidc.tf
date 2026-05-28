@@ -1,4 +1,6 @@
 # OIDC provider — tells AWS to trust tokens issued by GitHub
+#attempting to establish single point cicd from parent folder to both frontend and backend
+
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
