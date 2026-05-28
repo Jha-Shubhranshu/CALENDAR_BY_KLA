@@ -12,7 +12,6 @@ const App = () => {
 
   const handleAuthSuccessSignup = () => navigate1('/sign-in');
   const handleAuthSuccessSignin = () => navigate1('/note');
-  const handleLogOut = () => navigate1('/sign-in');
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 transition-colors duration-200">
