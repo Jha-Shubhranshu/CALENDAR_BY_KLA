@@ -14,7 +14,7 @@ interface UploadResponse {
 }
 
 
-export default function DragDropFiles({ onLogout }: DragDropFilesPropsSchema) {
+export default function DragDropFiles() {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [response, setResponse] = useState<UploadResponse | null>(null);
@@ -123,7 +123,7 @@ export default function DragDropFiles({ onLogout }: DragDropFilesPropsSchema) {
         {/* Logout Button */}
         <div className="flex justify-end mb-4">
           <button
-            onClick={handleLogoutClick}
+            onClick={logout}
             className="px-5 py-2 bg-white border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium shadow-sm"
           >
             Logout
