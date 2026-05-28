@@ -10,7 +10,7 @@ interface HeaderProps {
 
 export function Header({ searchQuery, onSearchChange, onToggleSidebar }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
-  const { logout, user } = useUserContext();
+  const { logout } = useUserContext();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-30 h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700/60 shadow-sm">

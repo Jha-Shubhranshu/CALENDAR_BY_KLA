@@ -13,9 +13,6 @@ interface UploadResponse {
   };
 }
 
-interface DragDropFilesPropsSchema {
-  onLogout: () => void;
-}
 
 export default function DragDropFiles({ onLogout }: DragDropFilesPropsSchema) {
   const [isDragging, setIsDragging] = useState(false);
@@ -104,7 +101,6 @@ export default function DragDropFiles({ onLogout }: DragDropFilesPropsSchema) {
       // Handle authentication errors
       if (res.status === 401) {
         setError('Session exxxpired. Please log in again.');
-        // setTimeout(() => onLogout(), 2000);
       } else {
         setError(data.detail || 'Upload failed');
       }
@@ -120,9 +116,6 @@ export default function DragDropFiles({ onLogout }: DragDropFilesPropsSchema) {
     fileInputRef.current?.click();
   };
 
-  const handleLogoutClick = async () => {
-    await logout();
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">

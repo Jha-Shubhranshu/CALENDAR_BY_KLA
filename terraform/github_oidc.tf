@@ -89,7 +89,11 @@ resource "aws_iam_policy" "github_actions_deploy" {
           "lambda:GetFunction",
           "lambda:GetFunctionConfiguration"
         ]
-        Resource = aws_lambda_function.backend.arn
+        Resource = [
+          aws_lambda_function.backend.arn,
+          aws_lambda_function.import_worker.arn,
+        ]
+
       }
     ]
   })
