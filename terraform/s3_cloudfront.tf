@@ -59,6 +59,30 @@ data "aws_cloudfront_cache_policy" "caching_optimized" {
 }
 
 resource "aws_cloudfront_distribution" "frontend" {
+
+    origin {
+      domain_name              = aws_s3_bucket.media.bucket_regional_domain_name
+      origin_id                = "media-bucket"
+      origin_access_control_id = aws_cloudfront_origin_access_control.media.id
+    }
+  
+    # NEW behavior — route /conversations/* to the media bucket
+    # MUST be listed BEFORE the default behavior; ordered_cache_behavior matches
+    # in declaration order, then falls through to default_cache_behavior.
+    ordered_cache_behavior {
+      path_pattern           = "/conversations/*"
+      target_origin_id       = "media-bucket"
+      viewer_protocol_policy = "redirect-to-https"
+      allowed_methods        = ["GET", "HEAD"]
+      cached_methods         = ["GET", "HEAD"]
+      compress               = true
+  
+      cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+      response_headers_policy_id = null
+  
+      # No forwarded headers/cookies/query-strings; media is static-by-hash.
+    }
+  
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_id                = "S3-${aws_s3_bucket.frontend.bucket}"

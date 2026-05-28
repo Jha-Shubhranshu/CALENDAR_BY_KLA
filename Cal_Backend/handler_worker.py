@@ -21,17 +21,16 @@ def _make_session() -> AsyncSession:
     """
     Create a brand-new engine and session for this invocation.
 
-    We use NullPool so SQLAlchemy never tries to reuse or ping connections
-    across invocations. Each Lambda call gets a fresh connection that is
-    opened and closed within that call — no leftovers, no stale event loop
-    references.
+    NullPool ensures SQLAlchemy never reuses connections across invocations.
+    Each Lambda call gets a fresh connection opened and closed within that
+    call — no leftovers, no stale event loop references.
     """
     engine = create_async_engine(
         DATABASE_URL_ASYNC,
         echo=False,
         future=True,
         connect_args=_get_connect_args(DATABASE_URL_ASYNC),
-        poolclass=NullPool,  # ← no pool — fresh connection every time
+        poolclass=NullPool,
     )
     Session = sessionmaker(
         bind=engine,
@@ -55,15 +54,39 @@ async def _run_jobs(records: list) -> None:
 
             logger.info(f"Processing job {job_id} (type={job_type})")
             try:
+                # NOTE: process_import_job creates its own session internally
+                # (see worker.py). We don't pass `session` here — doing so
+                # would raise TypeError because the function signature does
+                # not accept it.
                 await process_import_job(
                     job_id, user_id, job_type,
                     s3_key=s3_key,
-                    session=session,
                 )
                 logger.info(f"Job {job_id} finished")
             except Exception as exc:
                 logger.error(f"Job {job_id} failed: {exc}", exc_info=True)
-                raise  # Re-raise so SQS retries the message
+                raise  # re-raise so SQS retries the message
+
+
+async def _close_redis_pool() -> None:
+    """
+    Release every connection in the module-scoped Redis client's pool while
+    this invocation's event loop is still alive.
+
+    The client `token_blocklist` in db/redis.py lives at module scope, so it
+    survives across warm Lambda invocations. Without this cleanup, redis-py
+    keeps pooled connections whose transports point at the loop we are about
+    to close — and the next warm invocation crashes the first time it calls
+    `set_job_status` with `RuntimeError: Event loop is closed`.
+
+    `aclose()` closes the connections but leaves the client object reusable:
+    the next invocation lazily re-opens fresh connections on the new loop.
+    """
+    try:
+        from Cal_Backend.db.redis import token_blocklist
+        await token_blocklist.aclose()
+    except Exception as exc:
+        logger.warning(f"Redis aclose failed: {exc}")
 
 
 def handler(event, context):
@@ -71,15 +94,18 @@ def handler(event, context):
     records = event.get("Records", [])
     logger.info(f"Received {len(records)} SQS record(s)")
 
-    # Create a completely fresh event loop every invocation.
-    # asyncio.run() closes the loop when done — on a warm Lambda container
-    # reuse that closed loop causes "Event loop is closed" crashes.
-    # new_event_loop() + set_event_loop() guarantees we always start clean.
+    # Fresh loop every invocation. asyncio.run() would also create+close a
+    # loop, but using new_event_loop() + set_event_loop() explicitly lets us
+    # run our own cleanup (the Redis pool drain) on the dying loop *before*
+    # we close it.
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
         loop.run_until_complete(_run_jobs(records))
     finally:
-        loop.close()
+        try:
+            loop.run_until_complete(_close_redis_pool())
+        finally:
+            loop.close()
 
     return {"statusCode": 200}
