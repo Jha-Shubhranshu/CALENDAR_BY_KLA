@@ -91,12 +91,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 };
 
   const logout = async () => {
+    console.log("Logout initiated...");
     try {
       // Call your logout endpoint to clear HttpOnly cookies
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/logout`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/logout`, {
         method: "POST",
         credentials: "include", // Important: includes HttpOnly cookies
       });
+      console.log("Logout API response status:", response.status);
       
       // Clear local state
       setUser(INITIAL_USER);

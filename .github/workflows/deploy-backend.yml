@@ -3,9 +3,15 @@ name: Deploy Backend to AWS
 on:
   push:
     branches: [master]
-    paths:
-      - "Cal_Backend/**"                      # only run when the backend changed
-      - ".github/workflows/deploy-backend.yml"
+    # Your backend isn't contained in one folder (Dockerfile + alembic + .py files
+    # live at the repo root, alongside Cal_Backend). So instead of listing backend
+    # paths, we deploy on ANY push to master EXCEPT pure frontend / infra / docs changes.
+    paths-ignore:
+      - "Cal_TS_Frontend/**"
+      - "terraform/**"
+      - ".github/workflows/deploy-frontend.yml"
+      - ".github/workflows/ci.yml"
+      - "**/*.md"
   workflow_dispatch:
 
 permissions:
@@ -35,9 +41,10 @@ jobs:
 
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
-        working-directory: Cal_Backend         # <-- see note below about your Dockerfile location
+        # NO working-directory: your Dockerfile is at the repo ROOT, so we build
+        # from root. The build context is the whole repo (the root .dockerignore
+        # keeps node_modules/.venv/Cal_TS_Frontend out -- see note below).
         env:
-          # FIX: original was "steps.login-ecr.registry" (missing .outputs), which is empty.
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
@@ -54,15 +61,16 @@ jobs:
             --image-uri ${{ steps.build-image.outputs.image }}
 
 # ----------------------------------------------------------------------------
-# IMPORTANT about `working-directory: Cal_Backend`:
-#   This assumes your Dockerfile AND .dockerignore live inside Cal_Backend/.
-#   You currently have a .dockerignore at the REPO ROOT (see your folder
-#   screenshot), so confirm one of these:
+# Confirm your root .dockerignore excludes at least:
+#   node_modules
+#   .venv
+#   .git
+#   Cal_TS_Frontend
+#   dist
+#   *.md
+# Otherwise the whole repo (including the frontend + node_modules) gets sent as
+# build context, making the image slow to build and unnecessarily large.
 #
-#   Option A (recommended): move Dockerfile + .dockerignore into Cal_Backend/.
-#                           Keep working-directory: Cal_Backend  (as above).
-#
-#   Option B: Dockerfile stays at the root and references Cal_Backend/ paths.
-#             Then DELETE the working-directory line and build from root:
-#               docker build -t ... -f Dockerfile .
+# Also confirm the COPY lines inside your Dockerfile point at the right place
+# now that it builds from root (e.g. `COPY Cal_Backend/ ./` or `COPY . .`).
 # ----------------------------------------------------------------------------

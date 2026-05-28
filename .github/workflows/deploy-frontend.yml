@@ -1,11 +1,11 @@
-name: Deploy Backend to AWS
+name: Deploy frontend to AWS
 
 on:
   push:
     branches: [master]
     paths:
-      - "Cal_Backend/**"                      # only run when the backend changed
-      - ".github/workflows/deploy-backend.yml"
+      - "Cal_TS_Frontend/**"                 # only run when the frontend changed
+      - ".github/workflows/deploy-frontend.yml"
   workflow_dispatch:
 
 permissions:
@@ -14,55 +14,52 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: calendar-by-kla-backend
-  LAMBDA_FUNCTION_NAME: calendar-by-kla-backend
-  ROLE_ARN: arn:aws:iam::099210689603:role/github-actions-deploy
+  S3_BUCKET: calendar-by-kla-frontend-099210689603
+  CLOUDFRONT_DISTRIBUTION_ID: ER7EG11FK6I0V
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Cal_TS_Frontend
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: Cal_TS_Frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_API_BASE_URL: https://dtdjg3wim5ilk.cloudfront.net
+        run: npm run build
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.ROLE_ARN }}
+          role-to-assume: arn:aws:iam::099210689603:role/github-actions-deploy
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      - name: Sync to S3
+        run: aws s3 sync dist/ s3://${{ env.S3_BUCKET }}/ --delete
 
-      - name: Build, tag, and push image to Amazon ECR
-        id: build-image
-        working-directory: Cal_Backend         # <-- see note below about your Dockerfile location
-        env:
-          # FIX: original was "steps.login-ecr.registry" (missing .outputs), which is empty.
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Invalidate CloudFront
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
 
-      - name: Update Lambda function
+      - name: Smoke test
         run: |
-          aws lambda update-function-code \
-            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
-            --image-uri ${{ steps.build-image.outputs.image }}
-
-# ----------------------------------------------------------------------------
-# IMPORTANT about `working-directory: Cal_Backend`:
-#   This assumes your Dockerfile AND .dockerignore live inside Cal_Backend/.
-#   You currently have a .dockerignore at the REPO ROOT (see your folder
-#   screenshot), so confirm one of these:
-#
-#   Option A (recommended): move Dockerfile + .dockerignore into Cal_Backend/.
-#                           Keep working-directory: Cal_Backend  (as above).
-#
-#   Option B: Dockerfile stays at the root and references Cal_Backend/ paths.
-#             Then DELETE the working-directory line and build from root:
-#               docker build -t ... -f Dockerfile .
-# ----------------------------------------------------------------------------
+          sleep 10
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://dtdjg3wim5ilk.cloudfront.net/)
+          if [ "$STATUS" != "200" ]; then
+            echo "Health check failed with status $STATUS"
+            exit 1
+          fi
+          echo "Site responding"

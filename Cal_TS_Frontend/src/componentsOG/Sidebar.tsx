@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   Lightbulb, Tag, FolderKanban, BookOpen,
-  Plus, ChevronRight, ChevronDown, CalendarIcon,
+  Plus, ChevronRight, ChevronDown, CalendarIcon, LogOut,
 } from 'lucide-react';
 import type { LabelDisplay } from '../typesOG/note.types';
 import type { ProjectDisplay } from '../typesOG/project.types';
+import { useUserContext } from '../context/AuthContext';
 
 interface SidebarPropsSchema {
   labels?: LabelDisplay[];
@@ -35,6 +36,7 @@ export function Sidebar({
   onClose,
 }: SidebarPropsSchema) {
   const [notebooksExpanded, setNotebooksExpanded] = useState(false);
+  const { logout } = useUserContext();
   const location = useLocation();
   const isCalendarPage = location.pathname === '/calendar' && selectedProjectId === null;
   const isNotesActive =
@@ -200,6 +202,17 @@ export function Sidebar({
             ) : (
               <p className="text-xs text-gray-400 dark:text-gray-500 px-2 py-1.5">No labels yet</p>
             )}
+          </div>
+
+          {/* ── Logout (Bottom) ── */}
+          <div className="mt-auto pt-4 pb-2 px-3 border-t border-gray-100 dark:border-gray-800">
+            <button
+              onClick={logout}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors group"
+            >
+              <LogOut size={18} className="group-hover:translate-x-0.5 transition-transform" />
+              <span>Logout</span>
+            </button>
           </div>
 
         </div>

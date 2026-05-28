@@ -83,12 +83,12 @@ export function Header({ searchQuery, onSearchChange, onToggleSidebar }: HeaderP
 
           <button
             onClick={logout}
-            className="flex items-center gap-2 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-all group"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 transition-all group shadow-sm"
             aria-label="Logout"
             title="Logout"
           >
-            <span className="hidden md:block text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">Logout</span>
-            <LogOut size={18} />
+            <LogOut size={16} className="group-hover:translate-x-0.5 transition-transform" />
+            <span className="text-xs font-semibold tracking-wide uppercase">Logout</span>
           </button>
         </div>
       </div>
