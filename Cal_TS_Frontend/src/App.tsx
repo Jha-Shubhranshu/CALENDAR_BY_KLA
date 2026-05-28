@@ -20,7 +20,7 @@ const App = () => {
         <Route path="/"               element={<Navigate to="/sign-in" replace />} />
         <Route path="/sign-up"        element={<Authsignup onAuthSuccess={handleAuthSuccessSignup} />} />
         <Route path="/sign-in"        element={<Authsignin onAuthSuccess={handleAuthSuccessSignin} />} />
-        <Route path="/import"         element={<DragDropFiles onLogout={handleLogOut} />} />
+        <Route path="/import"         element={<DragDropFiles/>} />
         <Route path="/importnotes"    element={<GoogleKeepImport />} />
         <Route path="/bulkimportnotes" element={<GoogleKeepBulkImport />} />
         <Route path="/calendar"       element={<CalendarPage />} />
