@@ -1,24 +1,19 @@
 """
 Background worker for import jobs.
-
 Called from two places:
   - handler_worker.py        (SQS-triggered Lambda, production)
   - FastAPI BackgroundTasks  (local dev, when SQS is not configured)
-
 Both paths converge at process_import_job().
 """
-
 import json
 import logging
 import traceback
 from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
-
 from Cal_Backend.db.models import ImportJob, ImportJobStatus, User
 from Cal_Backend.db.redis import set_job_status
 
@@ -28,7 +23,6 @@ logger = logging.getLogger(__name__)
 async def _make_session() -> AsyncSession:
     """Create a session from the global engine (used by the dev BackgroundTasks path)."""
     from Cal_Backend.db.main import engine
-
     Session = sessionmaker(
         bind=engine,
         class_=AsyncSession,
@@ -51,20 +45,16 @@ async def _write_status(
         select(ImportJob).where(ImportJob.id == UUID(job_id))
     )
     job = result.scalar_one_or_none()
-
     if job:
         job.status = status
         job.processed_items = processed
-
         if result_stats is not None:
             job.result_stats = result_stats
         if error is not None:
             job.error_message = error
-
         job.updated_at = datetime.now(timezone.utc)
         session.add(job)
         await session.commit()
-
     redis_payload: dict = {
         "job_id": job_id,
         "status": status.value,
@@ -76,7 +66,6 @@ async def _write_status(
         redis_payload["result_stats"] = result_stats
     if error:
         redis_payload["error"] = error
-
     await set_job_status(job_id, redis_payload)
 
 
@@ -86,16 +75,25 @@ async def process_import_job(
     job_type: str,
     s3_key: Optional[str] = None,
     in_memory_data: Optional[Any] = None,
+    session: Optional[AsyncSession] = None,  # ← NEW: injected by handler_worker
 ) -> None:
     """
     Run a single import job end-to-end.
-
     Resolves payload (S3 or in-memory), dispatches to the correct service by
     job_type, and writes status updates at PROCESSING / COMPLETED / FAILED.
+
+    session: if provided (Lambda/SQS path), use it directly — it was created
+             with NullPool so it's safe across Lambda container reuse.
+             If None (local dev BackgroundTasks path), create one from the
+             global engine as before.
     """
     logger.info("WORKER STARTING: Job %s (%s)", job_id, job_type)
 
-    session = await _make_session()
+    # Determine whether we own the session (and must close it) or it was
+    # injected by the caller (who will close it themselves).
+    _owns_session = session is None
+    if _owns_session:
+        session = await _make_session()
 
     try:
         # ─── Load user ───────────────────────────────────────────────────
@@ -103,7 +101,6 @@ async def process_import_job(
             select(User).where(User.id == UUID(user_id))
         )
         user = result.scalar_one_or_none()
-
         if not user:
             logger.error("WORKER ERROR: User %s not found", user_id)
             raise ValueError(f"User {user_id} not found")
@@ -125,7 +122,6 @@ async def process_import_job(
         else:
             logger.info("WORKER: Downloading data from S3 %s", s3_key)
             from Cal_Backend.storage.s3 import download_import_data
-
             raw = await download_import_data(s3_key)
             payload = json.loads(raw)
             data = payload["data"]
@@ -140,12 +136,10 @@ async def process_import_job(
             from Cal_Backend.user_data_import.notesimportschemas import (
                 GoogleKeepNote,
             )
-
             keep_notes = [GoogleKeepNote(**n) for n in data]
             service = GoogleKeepImportService(session, user)
             stats = await service.import_notes(keep_notes)
             await session.commit()
-
             result_stats = {
                 "notes_created":           stats.notes_created,
                 "notes_skipped":           stats.notes_skipped,
@@ -163,7 +157,6 @@ async def process_import_job(
             from Cal_Backend.user_data_import.extension_service import (
                 ClaudeExtensionImportService,
             )
-
             conversations = [ClaudeNativeConversation(**c) for c in data]
             service = ClaudeExtensionImportService(session, user)
             result_stats = await service.import_conversations(conversations)
@@ -173,7 +166,6 @@ async def process_import_job(
                 ImportService,
                 validate_import_data,
             )
-
             data = validate_import_data(data)
             service = ImportService(session, user)
             result_stats = await service.import_conversations(data)
@@ -190,22 +182,16 @@ async def process_import_job(
             total=len(data),
             result_stats=result_stats,
         )
-
         logger.info(
             "WORKER SUCCESS: Job %s completed. Stats: %s",
             job_id, result_stats,
         )
 
     except Exception as exc:
-        # Log with full traceback so CloudWatch shows where it broke.
         logger.error(
             "WORKER CRASH on job %s: %s\n%s",
             job_id, exc, traceback.format_exc(),
         )
-
-        # Best-effort: record FAILED state. If even this write fails (Redis
-        # outage, DB rollback, etc.) we now log it instead of silently
-        # swallowing — the user-facing job will be stuck, but ops will know.
         try:
             await _write_status(
                 session, job_id, ImportJobStatus.FAILED, error=str(exc),
@@ -217,4 +203,7 @@ async def process_import_job(
             )
 
     finally:
-        await session.close()
+        # Only close the session if we created it — if it was injected by
+        # handler_worker.py, the caller's `async with` block closes it.
+        if _owns_session:
+            await session.close()
