@@ -8,6 +8,7 @@ from Cal_Backend.Label.route import label_router
 from Cal_Backend.Conversations.route import conversation_router
 from Cal_Backend.Project.route import project_router
 from Cal_Backend.Calendar.route import calendar_router
+from Cal_Backend.Search.route import search_router
 import traceback
 from fastapi.responses import PlainTextResponse
 from fastapi import Request
@@ -108,6 +109,7 @@ app.include_router(conversation_router, prefix="/api/v1/conversations", tags=["c
 app.include_router(project_router, prefix="/api/v1/projects", tags=["projects"])
 app.include_router(calendar_router, prefix="/api/v1/calendar", tags=["calendar"])
 app.include_router(accounts_router, prefix="/api/v1/accounts", tags=["accounts"])
+app.include_router(search_router, prefix="/api/v1/search", tags=["search"])
 
 
 # app.include_router(review_router, prefix=f"{version_prefix}/reviews", tags=["reviews"])

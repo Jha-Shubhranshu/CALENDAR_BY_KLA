@@ -16,6 +16,7 @@ import { ConversationsSidebar } from '../componentsOG/ConversationsSidebar';
 import { ChatWindow } from '../componentsOG/ChatWindow';
 import { ProjectSelectorModal } from '../componentsOG/modals/ProjectSelectorModal';
 import { CreateProjectModal } from '../componentsOG/modals/CreateProjectModal';
+import { TotalSearch } from '../componentsOG/TotalSearch';
 import type { NotebookSource, ConversationWithMessages } from '../typesOG/conversation.types';
 import type { ProjectWithMessages } from '../typesOG/project.types';
 import { getConversation, deleteConversation } from '../api/conversationsAPIAxios';
@@ -29,6 +30,7 @@ export function NotesPage() {
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedNotebookSource, setSelectedNotebookSource] = useState<NotebookSource | null>(null);
+  const [showTotalSearch, setShowTotalSearch] = useState(false);
   
   const [openChatWindow, setOpenChatWindow] = useState<{
     type: 'conversation' | 'project';
@@ -190,6 +192,15 @@ export function NotesPage() {
     setSelectedProjectId(null);
     setSelectedNotebookSource(null);
     setOpenChatWindow(null);
+    setShowTotalSearch(false);
+  };
+
+  const handleNavigateToNote = (noteId: string) => {
+    const note = notes.find(n => n.id === noteId);
+    if (note) {
+      handleEditNote(note, { top: 100, left: 100, width: 600, height: 400 }); // Approximate center
+      setShowTotalSearch(false);
+    }
   };
 
   const [selectedLabelId, setSelectedLabelId] = useState<string | null>(null);
@@ -385,20 +396,38 @@ export function NotesPage() {
       <div className="flex pt-16 h-full">
         {/* Sidebar - independent scroll */}
         <Sidebar  
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          labels={labels}  
-          selectedLabelId={selectedLabelId}  
-          onSelectLabel={handleLabelClick}  
-          onSelectNotes={handleSelectNotes}
-          projects={projects}
-          selectedProjectId={selectedProjectId}
-          onSelectProject={handleSelectProject}
-          onCreateProject={() => setShowCreateProject(true)}
-          onSelectNotebook={handleSelectNotebook}
-        />
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            labels={labels}  
+            selectedLabelId={selectedLabelId}  
+            onSelectLabel={handleLabelClick}  
+            onSelectNotes={handleSelectNotes}
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            onSelectProject={handleSelectProject}
+            onCreateProject={() => setShowCreateProject(true)}
+            onSelectNotebook={handleSelectNotebook}
+            onToggleSearch={() => setShowTotalSearch(!showTotalSearch)}
+            isSearchActive={showTotalSearch}
+          />
 
-        {/* Secondary Conversations Sidebar */}
+          {/* Total Search Sidebar */}
+          {showTotalSearch && (
+            <div className={`fixed top-16 bottom-0 z-30 transition-all duration-300 ${
+              sidebarOpen ? 'left-64' : 'left-0'
+            }`}>
+              <TotalSearch
+                onClose={() => setShowTotalSearch(false)}
+                onNavigateToMessage={(convId, msgId) => {
+                  handleNavigateToOriginal(convId, msgId);
+                  setShowTotalSearch(false);
+                }}
+                onNavigateToNote={handleNavigateToNote}
+              />
+            </div>
+          )}
+
+          {/* Secondary Conversations Sidebar */}
         {selectedNotebookSource && (
           <div className={`fixed top-16 bottom-0 z-30 transition-all duration-300 ${
             sidebarOpen ? 'left-64' : 'left-0'

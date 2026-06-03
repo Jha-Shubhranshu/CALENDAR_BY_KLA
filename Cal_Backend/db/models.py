@@ -120,6 +120,8 @@ class User(SQLModel, table=True):
     labels: List["Label"] = Relationship(back_populates="user")
     media: List["Media"] = Relationship(back_populates="user")
     import_jobs: List["ImportJob"] = Relationship(back_populates="user")
+    accounts: List["UserAccount"] = Relationship(back_populates="user")   # ← add this
+
 
 
 class Conversation(SQLModel, table=True):

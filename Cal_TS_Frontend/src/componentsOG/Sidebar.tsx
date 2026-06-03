@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   Lightbulb, Tag, FolderKanban, BookOpen,
-  Plus, ChevronRight, ChevronDown, CalendarIcon, LogOut,
+  Plus, ChevronRight, ChevronDown, CalendarIcon, LogOut, Search
 } from 'lucide-react';
 import type { LabelDisplay } from '../typesOG/note.types';
 import type { ProjectDisplay } from '../typesOG/project.types';
@@ -18,6 +18,8 @@ interface SidebarPropsSchema {
   onSelectProject?: (projectId: string) => void;
   onCreateProject?: () => void;
   onSelectNotebook?: (source: 'claude' | 'chatgpt') => void;
+  onToggleSearch?: () => void;
+  isSearchActive?: boolean;
   isOpen?: boolean;
   onClose?: () => void;
 }
@@ -32,6 +34,8 @@ export function Sidebar({
   onSelectProject,
   onCreateProject,
   onSelectNotebook,
+  onToggleSearch,
+  isSearchActive = false,
   isOpen = true,
   onClose,
 }: SidebarPropsSchema) {
@@ -93,6 +97,13 @@ export function Sidebar({
             <>
               <Lightbulb size={18} className={isNotesActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'} />
               Notes
+            </>
+          )}
+
+          {navBtn(isSearchActive, () => { onToggleSearch?.(); if (window.innerWidth < 1024) onClose?.(); },
+            <>
+              <Search size={18} className={isSearchActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'} />
+              Search Platform
             </>
           )}
 
