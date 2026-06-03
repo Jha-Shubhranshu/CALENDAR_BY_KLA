@@ -161,14 +161,46 @@ async def process_import_job(
             service = ClaudeExtensionImportService(session, user)
             result_stats = await service.import_conversations(conversations)
 
+        elif job_type == "chatgpt_ingest":
+            from Cal_Backend.user_data_import.schemas import (
+                ChatGPTConversation,
+            )
+            from Cal_Backend.user_data_import.chatgpt_service import (
+                ChatGPTImportService,
+            )
+            conversations = [ChatGPTConversation(**c) for c in data]
+            service = ChatGPTImportService(session, user)
+            result_stats = await service.import_conversations(conversations)
+
+
         elif job_type == "json":
             from Cal_Backend.user_data_import.service import (
                 ImportService,
                 validate_import_data,
             )
-            data = validate_import_data(data)
+            # data = validate_import_data(data)
             service = ImportService(session, user)
             result_stats = await service.import_conversations(data)
+
+        elif job_type == "chatgpt_zip_normalize":
+            # data == [{"s3_key": "chatgpt-uploads/<user>/<uuid>.zip"}]
+            from Cal_Backend.user_data_import.chatgpt_normalizer import (
+                normalize_chatgpt_export_from_s3,
+            )
+            from Cal_Backend.user_data_import.chatgpt_service import (
+                ChatGPTImportService,
+            )
+ 
+            s3_key = (data[0] if data else {}).get("s3_key")
+            if not s3_key:
+                raise ValueError("chatgpt_zip_normalize job missing s3_key")
+ 
+            conversations = await normalize_chatgpt_export_from_s3(s3_key)
+            service = ChatGPTImportService(session, user)
+            result_stats = await service.import_conversations(conversations)
+            # total_items / processed_items get reported from result_stats
+            result_stats["zip_s3_key"] = s3_key
+
 
         else:
             raise ValueError(f"Unknown job_type: {job_type}")

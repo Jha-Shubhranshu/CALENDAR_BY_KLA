@@ -137,8 +137,11 @@ resource "aws_lambda_function" "import_worker" {
     command = ["Cal_Backend.handler_worker.handler"]
   }
 
-  timeout     = 300  # 5 minutes — large imports can take a while
-  memory_size = 512  # imports are CPU-light; 512 MB is sufficient
+  timeout     = 900  # 15 min — SQS visibility timeout matches
+  memory_size = 3008  # bumped from 512 to handle ChatGPT ZIPs up to ~300 MB
+  ephemeral_storage {
+    size = 4096           # 4 GB /tmp; not strictly needed (we stay in-memory)
+  }
 
   vpc_config {
     subnet_ids         = aws_subnet.private[*].id
@@ -204,6 +207,21 @@ resource "aws_cloudwatch_metric_alarm" "import_worker_errors" {
 
   dimensions = {
     FunctionName = aws_lambda_function.import_worker.function_name
+  }
+}
+
+resource "aws_s3_bucket_cors_configuration" "imports_cors" {
+  bucket = aws_s3_bucket.import_payloads.id   # ← rename to whatever your bucket resource is
+ 
+  cors_rule {
+    allowed_methods = ["PUT"]
+    allowed_origins = [
+      "https://dtdjg3wim5ilk.cloudfront.net",
+      "http://localhost:5173",   # remove if you don't want local dev to hit prod S3
+    ]
+    allowed_headers = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
   }
 }
 

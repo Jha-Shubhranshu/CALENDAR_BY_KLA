@@ -1,5 +1,6 @@
 import base64
-from typing import List, Dict, Any
+import re
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from Cal_Backend.storage.s3 import upload_media
 from uuid import UUID as UUID  # Fix the alias conflict
@@ -420,15 +421,134 @@ class ImportService:
             return None
 
 
+def normalize_claude_native(conversation: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Normalizes a Claude native export conversation object to the internal format.
+    Matches logic from claude2json.py.
+    """
+    # 1. Basic fields
+    normalized = {
+        "id": conversation.get("uuid", ""),
+        "title": conversation.get("name") or conversation.get("summary") or "Untitled Claude Conversation",
+        "source": "claude",
+        "created_at": conversation.get("created_at", ""),
+        "updated_at": conversation.get("updated_at", ""),
+        "messages": []
+    }
+
+    # 2. Account field
+    account_raw = conversation.get("account")
+    if isinstance(account_raw, dict):
+        normalized["account"] = account_raw.get("email_address") or account_raw.get("uuid") or "NA"
+    else:
+        normalized["account"] = account_raw or "NA"
+
+    # 3. Process chat messages
+    for msg in conversation.get("chat_messages", []):
+        # Skip if no meaningful content
+        if not msg.get("text") and not msg.get("content"):
+            continue
+            
+        sender = msg.get("sender", "")
+        # Normalize role
+        role = "user" if sender == "human" else "assistant"
+        
+        # Extract main content and detect type
+        message_obj = {
+            "id": msg.get("uuid", ""),
+            "role": role,
+            "content": "",
+            "content_type": "text",
+            "timestamp": msg.get("created_at", ""),
+            "metadata": {},
+            "parent_id": msg.get("parent_message_uuid")
+        }
+        
+        # Process content blocks
+        content_parts = []
+        has_artifact = False
+        artifact_info = {}
+        citations = []
+        
+        content_blocks = msg.get("content", [])
+        if not content_blocks and msg.get("text"):
+            # Fallback if content list is missing but text field exists
+            content_parts.append(msg.get("text"))
+        else:
+            for block in content_blocks:
+                block_type = block.get("type", "")
+                
+                if block_type == "text":
+                    text_content = block.get("text", "")
+                    if text_content:
+                        content_parts.append(text_content)
+                    
+                    # Collect citations if present
+                    block_citations = block.get("citations", [])
+                    if block_citations:
+                        citations.extend(block_citations)
+                
+                elif block_type == "tool_use":
+                    # Check if it's an artifact
+                    tool_name = block.get("name", "")
+                    if tool_name == "artifacts":
+                        has_artifact = True
+                        tool_input = block.get("input", {})
+                        
+                        artifact_info = {
+                            "title": tool_input.get("title", ""),
+                            "language": tool_input.get("language", ""),
+                            "artifact_type": tool_input.get("type", "")
+                        }
+                        
+                        # Add artifact content
+                        artifact_content = tool_input.get("content", "")
+                        if artifact_content:
+                            content_parts.append(f"\n\n```{artifact_info.get('language', '')}\n{artifact_content}\n```")
+        
+        # Combine all content parts
+        message_obj["content"] = "\n".join(content_parts)
+        
+        # Determine content type
+        if has_artifact:
+            if artifact_info.get("artifact_type") == "application/vnd.ant.code":
+                message_obj["content_type"] = "code"
+            else:
+                message_obj["content_type"] = "artifact"
+            
+            # Add metadata
+            if artifact_info.get("language"):
+                message_obj["metadata"]["language"] = artifact_info["language"]
+            if artifact_info.get("title"):
+                message_obj["metadata"]["title"] = artifact_info["title"]
+        elif "```" in message_obj["content"]:
+            message_obj["content_type"] = "code"
+            # Try to extract language from code block
+            match = re.search(r'```(\w+)', message_obj["content"])
+            if match:
+                message_obj["metadata"]["language"] = match.group(1)
+        
+        # Add citations if any
+        if citations:
+            message_obj["metadata"]["citations"] = citations
+        
+        # Only add if has content
+        if message_obj["content"].strip():
+            normalized["messages"].append(message_obj)
+    
+    return normalized
+
+
 def validate_import_data(data: Any) -> List[Dict[str, Any]]:
     """
-    Validate import data structure
+    Validate import data structure. 
+    Strictly requires Claude native schema (uuid, name, chat_messages).
     
     Args:
         data: Data to validate
         
     Returns:
-        Validated data as list of dicts
+        Normalized data as list of dicts
         
     Raises:
         HTTPException if validation fails
@@ -445,6 +565,8 @@ def validate_import_data(data: Any) -> List[Dict[str, Any]]:
             detail="Import data is empty"
         )
     
+    normalized_list = []
+
     # Validate each conversation
     for idx, conv in enumerate(data):
         if not isinstance(conv, dict):
@@ -453,28 +575,35 @@ def validate_import_data(data: Any) -> List[Dict[str, Any]]:
                 detail=f"Conversation at index {idx} is not a valid object"
             )
         
-        # Required fields
-        if "title" not in conv:
+        # STRICT REQUIREMENT: Claude Native Format
+        # Indicators: has 'chat_messages' AND 'uuid' AND 'name'
+        is_claude_native = "chat_messages" in conv and "uuid" in conv and "name" in conv
+        
+        if not is_claude_native:
+            missing_fields = []
+            if "uuid" not in conv: missing_fields.append("'uuid'")
+            if "name" not in conv: missing_fields.append("'name'")
+            if "chat_messages" not in conv: missing_fields.append("'chat_messages'")
+            
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Conversation at index {idx} missing 'title' field"
+                detail=f"Conversation at index {idx} rejected. Missing required Claude native fields: {', '.join(missing_fields)}"
             )
-        
-        if "source" not in conv:
+
+        try:
+            # Transform Claude native to internal format
+            conv = normalize_claude_native(conv)
+        except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Conversation at index {idx} missing 'source' field"
+                detail=f"Failed to normalize Claude native format at index {idx}: {str(e)}"
             )
-        
+
+        # Final check on normalized output
         if "messages" not in conv or not isinstance(conv["messages"], list):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Conversation at index {idx} missing or invalid 'messages' field"
-            )
-        if "account" not in conv:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Conversation at index {idx} missing 'account' field"
+                detail=f"Conversation at index {idx} resulted in empty or invalid messages after normalization"
             )
         
         # Validate messages
@@ -488,7 +617,9 @@ def validate_import_data(data: Any) -> List[Dict[str, Any]]:
             if "content" not in msg:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Message at index {msg_idx} in conversation '{conv.get('title')}' missing 'content'"
+                    detail=f"Message at index {msg_idx} in conversation '{conv.get('title')}' missing 'content' after normalization"
                 )
+        
+        normalized_list.append(conv)
     
-    return data
+    return normalized_list

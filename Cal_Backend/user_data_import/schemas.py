@@ -146,3 +146,57 @@ class ClaudeNativeConversation(BaseModel):
     chat_messages: List[ClaudeChatMessage] = Field(default_factory=list)
     
     model_config = {"extra": "allow"}
+    
+    
+    
+    
+    
+    
+class ChatGPTMessageMetadata(BaseModel):
+    """
+    Per-message metadata in the clean ChatGPT schema.
+    
+    `image_url` is the canonical singular field from the original schema spec.
+    `images` is the extended multi-image form used after server-side normalization
+    of raw OpenAI exports — each entry carries enough info for the import service
+    to either trust an existing S3 key (already_in_s3=True) or fetch/decode bytes.
+    """
+    language: Optional[str] = None
+    image_url: Optional[str] = None
+    images: Optional[List[Dict[str, Any]]] = None
+ 
+    # Pass-through fields the normalizer attaches for traceability
+    model: Optional[str] = None
+    chatgpt_request_id: Optional[str] = None
+ 
+    model_config = {"extra": "allow"}
+ 
+ 
+class ChatGPTMessage(BaseModel):
+    """One message in the clean ChatGPT conversation schema."""
+    id: str
+    role: str  # "user" | "assistant" | "system"
+    content: str = ""
+    content_type: str = "text"  # "text" | "code" | "image" | other
+    timestamp: Optional[str] = None
+    parent_id: Optional[str] = None
+    metadata: ChatGPTMessageMetadata = Field(default_factory=ChatGPTMessageMetadata)
+ 
+    model_config = {"extra": "allow"}
+ 
+ 
+class ChatGPTConversation(BaseModel):
+    """
+    Clean ChatGPT conversation schema. This is what /chatgpt/ingest accepts,
+    what /chatgpt/upload produces after normalizing a raw export, and what
+    the future ChatGPT browser extension should send.
+    """
+    id: str
+    title: Optional[str] = ""
+    source: Optional[str] = "chatgpt"
+    account: Optional[str] = ""
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    messages: List[ChatGPTMessage] = Field(default_factory=list)
+ 
+    model_config = {"extra": "allow"}

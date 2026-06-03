@@ -3,8 +3,15 @@ import uuid
 import os
 import base64
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
+from uuid import uuid4
+from pydantic import BaseModel
+
+
+import logging
+logger = logging.getLogger(__name__)
+
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
@@ -19,7 +26,18 @@ from Cal_Backend.Conversations.schemas import ConversationResponse
 
 from .notesimportschemas import GoogleKeepImportRequest
 from .service import validate_import_data, ImportService
-from .schemas import ExtensionIngestSchema, ImportConversationSchema, ClaudeNativeConversation
+from .schemas import ExtensionIngestSchema, ImportConversationSchema, ClaudeNativeConversation, ChatGPTConversation
+
+from Cal_Backend.storage.s3 import (
+    presign_import_upload,
+    import_object_exists,
+)
+
+class ChatGPTUploadProcessRequest(BaseModel):
+    """Body for /chatgpt/upload/process — points at a freshly-PUT ZIP in S3."""
+    s3_key: str
+    file_size: Optional[int] = None  # browser-reported, informational only
+
 
 Json_router = APIRouter()
 ACCESS_TOKEN_BEARER = AccessTokenBearerC()
@@ -265,6 +283,104 @@ async def ingest_from_extension(
         session, background_tasks, current_user,
         "extension_ingest", serialisable,
     )
+
+
+
+
+
+@Json_router.post("/chatgpt/ingest", status_code=status.HTTP_202_ACCEPTED)
+async def ingest_chatgpt(
+    data: List[ChatGPTConversation],
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_userC),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Accept ChatGPT conversations in the clean schema. Used by:
+      - a future ChatGPT browser extension (mirroring the Claude one), which
+        will send images as data:... URLs inside `metadata.images`
+      - external normalizers that already uploaded images to S3 / a CDN
+    """
+    if not data:
+        raise HTTPException(status_code=400, detail="No conversations provided")
+ 
+    serialisable = [conv.model_dump() for conv in data]
+    return await _dispatch_import(
+        session, background_tasks, current_user,
+        "chatgpt_ingest", serialisable,
+    )
+ 
+ 
+@Json_router.post("/chatgpt/upload/presign", status_code=status.HTTP_200_OK)
+async def presign_chatgpt_upload(
+    current_user: User = Depends(get_current_userC),
+):
+    """
+    Step 1 of the large-export upload flow. Returns a presigned PUT URL the
+    browser can use to upload a ZIP directly to S3, bypassing the 10 MB API
+    Gateway request-body cap. The key is scoped to the calling user so they
+    cannot overwrite anyone else's pending upload.
+ 
+    The key returned here is what the browser must POST back to
+    /chatgpt/upload/process once the PUT completes.
+    """
+    s3_key = f"chatgpt-uploads/{current_user.id}/{uuid4().hex}.zip"
+    url = await presign_import_upload(s3_key, content_type="application/zip")
+    return {
+        "s3_key":       s3_key,
+        "upload_url":   url,
+        "content_type": "application/zip",
+        "expires_in":   900,
+    }
+ 
+ 
+@Json_router.post("/chatgpt/upload/process", status_code=status.HTTP_202_ACCEPTED)
+async def process_chatgpt_upload(
+    body: ChatGPTUploadProcessRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_userC),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Step 3 of the large-export upload flow. The browser tells us where the
+    ZIP landed; we verify the object exists and is in this user\\'s namespace,
+    then dispatch a chatgpt_zip_normalize job for the worker Lambda to pick
+    up. Normalization (parsing, image extraction to S3 media bucket, etc.)
+    happens inside the worker, not here, so this endpoint stays fast.
+    """
+    s3_key = body.s3_key or ""
+    expected_prefix = f"chatgpt-uploads/{current_user.id}/"
+    if not s3_key.startswith(expected_prefix):
+        raise HTTPException(
+            status_code=403,
+            detail="s3_key is outside your upload namespace.",
+        )
+    if not s3_key.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="s3_key must point at a .zip file")
+ 
+    if not await import_object_exists(s3_key):
+        raise HTTPException(
+            status_code=404,
+            detail="ZIP not found at that key — was the PUT successful?",
+        )
+ 
+    # The worker downloads the ZIP from S3, normalizes, and runs the import.
+    # We pass the key as in-memory data so it survives both the SQS path
+    # (key goes inside the job payload uploaded to the imports bucket) and
+    # the local BackgroundTasks path.
+    return await _dispatch_import(
+        session, background_tasks, current_user,
+        "chatgpt_zip_normalize",
+        [{"s3_key": s3_key}],   # list[dict] so total_items=1 is sane
+    )
+
+
+
+
+
+
+
+
 
 
 @Json_router.post("/json", status_code=status.HTTP_202_ACCEPTED)

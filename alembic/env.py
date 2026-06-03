@@ -45,7 +45,13 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
-    engine = create_async_engine(get_url(), poolclass=pool.NullPool)
+    from Cal_Backend.db.main import get_connect_args
+    url = get_url()
+    engine = create_async_engine(
+        url, 
+        poolclass=pool.NullPool,
+        connect_args=get_connect_args(url)
+    )
     async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await engine.dispose()

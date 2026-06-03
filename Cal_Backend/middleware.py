@@ -80,7 +80,8 @@ def register_middleware(app: FastAPI):
         "http://localhost:5174",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
-        "https://claude.ai",
+        "https://claude.ai", 
+        "https://chatgpt.com",
         "https://calendar-by-kla.vercel.app",
         "https://calendar-by-kla-shubham.vercel.app",
         "https://dtdjg3wim5ilk.cloudfront.net",
@@ -94,7 +95,13 @@ def register_middleware(app: FastAPI):
         allow_origins=origins,
         allow_origin_regex=r"chrome-extension://.*",
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-        allow_headers=["Authorization", "Content-Type", "X-Requested-With"],  # explicit, not "*"
+        allow_headers=[        "Authorization",
+        "Content-Type",
+        "X-Requested-With",
+        "X-Source",
+        "X-Account",
+        "X-Trigger",
+],  # explicit, not "*"
         allow_credentials=False,   # extensions use Bearer tokens, not cookies
         expose_headers=["Content-Length", "X-Request-ID"],  # explicit, not "*"
     )    

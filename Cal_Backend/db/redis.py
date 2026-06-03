@@ -22,12 +22,53 @@ JTI_EXPIRY = ACCESS_TOKEN_EXPIRY
 # invocations, so the pool MUST be drained inside each invocation's event
 # loop before that loop is closed. See handler_worker._close_redis_pool.
 # Without that, the next invocation crashes with "Event loop is closed".
-token_blocklist = redis.Redis(
-    host=Config.REDIS_HOST,
-    port=Config.REDIS_PORT,
-    password=Config.REDIS_PASSWORD,
-    db=0,
-)
+# token_blocklist = redis.Redis(
+#     host=Config.REDIS_HOST,
+#     port=Config.REDIS_PORT,
+#     password=Config.REDIS_PASSWORD,
+#     db=0,
+# )
+
+_redis_client: redis.Redis | None = None
+_redis_loop_id: int | None = None
+
+
+def _get_redis() -> redis.Redis:
+    """
+    Return a Redis client bound to the **current** event loop.
+    If the loop changed (warm Lambda reuse), tear down the stale
+    client and build a fresh one so we never hit
+    'Event loop is closed'.
+    """
+    global _redis_client, _redis_loop_id
+    import asyncio
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    current_id = id(loop) if loop else None
+
+    if _redis_client is not None and current_id == _redis_loop_id:
+        return _redis_client
+
+    # Stale client from a previous invocation's loop — discard it.
+    if _redis_client is not None:
+        try:
+            _redis_client.connection_pool.disconnect()
+        except Exception:
+            pass
+
+    _redis_client = redis.Redis(
+        host=Config.REDIS_HOST,
+        port=Config.REDIS_PORT,
+        password=Config.REDIS_PASSWORD,
+        db=0,
+    )
+    _redis_loop_id = current_id
+    return _redis_client
+
 
 
 async def add_jti_to_blocklist(jti: str, is_refresh: bool = False) -> None:
@@ -40,7 +81,7 @@ async def add_jti_to_blocklist(jti: str, is_refresh: bool = False) -> None:
     """
     try:
         expiry_time = REFRESH_TOKEN_EXPIRY if is_refresh else ACCESS_TOKEN_EXPIRY
-        await token_blocklist.set(name=jti, value="", ex=expiry_time)
+        await _get_redis().set(name=jti, value="", ex=expiry_time)
     except Exception as e:
         # Log but don't crash the request — auth still works, the token just
         # won't be revoked. CloudWatch metric filter on "Redis error" should
@@ -67,7 +108,7 @@ async def token_in_blocklist(jti: str) -> bool:
     revocation. The error is logged so monitoring can catch a Redis outage.
     """
     try:
-        result = await token_blocklist.get(jti)
+        result = await _get_redis().get(jti)
         return result is not None
     except Exception as e:
         logger.error("Redis error in token_in_blocklist: %s", e, exc_info=True)
@@ -77,8 +118,8 @@ async def token_in_blocklist(jti: str) -> bool:
 async def get_blocklist_stats() -> dict:
     """Stats endpoint helper — used for monitoring dashboards."""
     try:
-        info = await token_blocklist.info()
-        key_count = await token_blocklist.dbsize()
+        info = await _get_redis().info()
+        key_count = await _get_redis().dbsize()
         return {
             "total_keys": key_count,
             "used_memory": info.get("used_memory_human", "N/A"),
@@ -98,7 +139,7 @@ async def set_job_status(job_id: str, status_data: dict) -> None:
     stuck "processing" job until the 24 h TTL expires.
     """
     try:
-        await token_blocklist.set(
+        await _get_redis().set(
             f"import_job:{job_id}",
             json.dumps(status_data),
             ex=IMPORT_JOB_TTL,
@@ -113,7 +154,7 @@ async def set_job_status(job_id: str, status_data: dict) -> None:
 async def get_job_status(job_id: str) -> dict | None:
     """Read the current status snapshot for a job, or None if missing."""
     try:
-        result = await token_blocklist.get(f"import_job:{job_id}")
+        result = await _get_redis().get(f"import_job:{job_id}")
         if result:
             return json.loads(result)
         return None
@@ -137,12 +178,12 @@ async def clear_expired_tokens() -> int:
         Number of keys cleared.
     """
     try:
-        keys = await token_blocklist.keys("*")
+        keys = await _get_redis().keys("*")
         cleared = 0
         for key in keys:
-            ttl = await token_blocklist.ttl(key)
+            ttl = await _get_redis().ttl(key)
             if ttl == -1:
-                await token_blocklist.delete(key)
+                await _get_redis().delete(key)
                 cleared += 1
         return cleared
     except Exception as e:

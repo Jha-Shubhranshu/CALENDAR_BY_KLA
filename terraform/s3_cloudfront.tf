@@ -217,7 +217,13 @@ resource "aws_cloudfront_response_headers_policy" "api_cors" {
     access_control_allow_credentials = false
 
     access_control_allow_headers {
-      items = ["Authorization", "Content-Type", "X-Requested-With"]
+      items = ["Authorization",
+                "Content-Type",
+                "X-Requested-With",
+                "X-Source",
+                "X-Account",
+                "X-Trigger",
+              ]
     }
 
     access_control_allow_methods {
@@ -225,7 +231,8 @@ resource "aws_cloudfront_response_headers_policy" "api_cors" {
     }
 
     access_control_allow_origins {
-      items = ["https://claude.ai"]
+      items = ["https://claude.ai",
+    "https://chatgpt.com"]
     }
 
     access_control_max_age_sec = 86400

@@ -18,10 +18,8 @@ bcrypt
 python-multipart
 email-validator
 python-dotenv
-boto3
 fastapi-mail
 httpx
 aiomysql
 mangum==0.17.0
-
-aioboto3
+aioboto3==15.5.0
