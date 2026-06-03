@@ -33,13 +33,17 @@ interface QueuedResponse {
   message: string;
 }
 
+interface ChatGPTImportProps {
+  selectedAccount?: string | null;
+}
+
 type Phase = 'idle' | 'presigning' | 'uploading' | 'enqueuing' | 'polling';
 
 const POLL_INTERVAL_MS = 2000;
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
 const MAX_ZIP_BYTES = 2 * 1024 * 1024 * 1024;  // 2 GB
 
-export const ChatGPTImport: React.FC = () => {
+export const ChatGPTImport: React.FC<ChatGPTImportProps> = ({ selectedAccount }) => {
   const [file, setFile] = useState<File | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
   const [uploadPct, setUploadPct] = useState(0);
@@ -138,14 +142,22 @@ export const ChatGPTImport: React.FC = () => {
         setUploadPct(pct);
       });
 
-      // 3. Tell backend the upload finished
+      // 3. Tell backend the upload finished. Account selection rides as a query
+      //    param the same way the Claude path does it; the worker reads it back
+      //    off data[0]["account"] in the chatgpt_zip_normalize branch.
       setPhase('enqueuing');
-      const processRes = await fetch(`${API_BASE}/api/v1/ArjunJson/chatgpt/upload/process`, {
-        method:      'POST',
-        credentials: 'include',
-        headers:     { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ s3_key: presign.s3_key, file_size: file.size }),
-      });
+      const accountQuery = selectedAccount
+        ? `?account=${encodeURIComponent(selectedAccount)}`
+        : '';
+      const processRes = await fetch(
+        `${API_BASE}/api/v1/ArjunJson/chatgpt/upload/process${accountQuery}`,
+        {
+          method:      'POST',
+          credentials: 'include',
+          headers:     { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ s3_key: presign.s3_key, file_size: file.size }),
+        },
+      );
       if (!processRes.ok) {
         const err = await processRes.json().catch(() => ({}));
         throw new Error(err.detail ?? `Enqueue failed (${processRes.status})`);
@@ -224,6 +236,9 @@ export const ChatGPTImport: React.FC = () => {
           you downloaded from <span className="font-mono text-xs">chatgpt.com → Settings → Data Controls → Export data</span>.
           Large exports are uploaded directly to S3 — your conversations and embedded images are processed in the background.
         </p>
+        {selectedAccount && (
+          <p className="text-xs text-blue-600 mt-1">Account: {selectedAccount}</p>
+        )}
       </div>
 
       {!jobStatus && !file && (
@@ -329,6 +344,9 @@ export const ChatGPTImport: React.FC = () => {
                 {jobStatus.status === 'completed'  && 'Import complete'}
                 {jobStatus.status === 'failed'     && 'Import failed'}
               </p>
+              {selectedAccount && (
+                <p className="text-xs text-blue-600">Account: {selectedAccount}</p>
+              )}
               <p className="text-xs text-gray-500">Job ID: {jobStatus.job_id}</p>
             </div>
           </div>

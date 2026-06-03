@@ -22,6 +22,7 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: calendar-by-kla-backend
   LAMBDA_FUNCTION_NAME: calendar-by-kla-backend
+  WORKER_FUNCTION_NAME: calendar-by-kla-import-worker
   ROLE_ARN: arn:aws:iam::099210689603:role/github-actions-deploy
 
 jobs:
@@ -59,6 +60,14 @@ jobs:
           aws lambda update-function-code \
             --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
             --image-uri ${{ steps.build-image.outputs.image }}
+      
+              aws lambda update-function-code \
+                --function-name calendar-by-kla-import-worker \
+                --image-uri ${{ steps.build-image.outputs.image }}
+
+              aws lambda wait function-updated --function-name ${{ env.LAMBDA_FUNCTION_NAME }}
+              aws lambda wait function-updated --function-name calendar-by-kla-import-worker
+
 
 # ----------------------------------------------------------------------------
 # Confirm your root .dockerignore excludes at least:
