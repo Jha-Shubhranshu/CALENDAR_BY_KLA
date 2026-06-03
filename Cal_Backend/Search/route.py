@@ -44,7 +44,7 @@ async def total_search(
 
     # Search in Notes (which includes both messages and manual notes)
     # We filter by content and title
-    stmt = select(Note).where(
+    stmt_notes = select(Note).where(
         Note.user_id == current_user.id,
         or_(
             text(f"content {regex_op} :pattern").bindparams(pattern=pattern),
@@ -53,15 +53,34 @@ async def total_search(
     ).order_by(Note.timestamp.desc())
 
     # Include conversation info if it's a message
-    stmt = stmt.options(selectinload(Note.conversation))
+    stmt_notes = stmt_notes.options(selectinload(Note.conversation))
 
-    result = await session.execute(stmt)
-    notes = result.scalars().all()
+    # Search in Conversations for title matches
+    stmt_convs = select(Conversation).where(
+        Conversation.user_id == current_user.id,
+        text(f"title {regex_op} :pattern").bindparams(pattern=pattern)
+    )
+
+    # Execute both
+    notes_result = await session.execute(stmt_notes)
+    convs_result = await session.execute(stmt_convs)
+    
+    notes = notes_result.scalars().all()
+    convs_with_matching_titles = convs_result.scalars().all()
 
     # Group results
     conversation_map = {}
     manual_notes = []
 
+    # First, initialize map with conversations that have matching titles
+    for conv in convs_with_matching_titles:
+        conversation_map[conv.id] = {
+            "id": conv.id,
+            "title": conv.title,
+            "messages": []
+        }
+
+    # Then, add matching messages
     for note in notes:
         if note.conversation_id:
             # It's a message in a conversation

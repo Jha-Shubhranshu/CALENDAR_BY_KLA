@@ -171,7 +171,7 @@ export function TotalSearch({ onClose, onNavigateToMessage, onNavigateToNote }: 
                   {expandedConversations[conv.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   <MessageSquare size={14} className="text-blue-500 shrink-0" />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate flex-1">
-                    {conv.title}
+                    {highlightMatch(conv.title)}
                   </span>
                   <span className="text-[10px] bg-gray-200 dark:bg-gray-700 text-gray-500 px-1.5 rounded-full group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition">
                     {conv.messages.length}
