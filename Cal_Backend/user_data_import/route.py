@@ -169,9 +169,8 @@ async def _dispatch_import(
             if job_type == "extension_ingest":
                 # Claude native shape: account is a dict {"email_address": ..., "uuid": ...}
                 item["account"] = {"email_address": account_override}
-            elif job_type in ("chatgpt_ingest", "json", "chatgpt_zip_normalize", "claude_json_normalize"):
+            elif job_type in ("chatgpt_ingest", "json", "chatgpt_zip_normalize"):
                 # Clean/ChatGPT shape: account is a plain string
-                # For normalize jobs, this travels in the job metadata dict
                 item["account"] = account_override
             # google_keep jobs don't use account — skip
  
@@ -630,7 +629,7 @@ async def presign_claude_upload(
 async def process_claude_upload(
     body: ClaudeUploadProcessRequest,
     background_tasks: BackgroundTasks,
-    account: Optional[str] = Query(None, description="Override account email for all conversations"),
+    account: Optional[str] = Query(default=None),   # ← new
     current_user: User = Depends(get_current_userC),
     session: AsyncSession = Depends(get_session),
 ):
@@ -658,6 +657,5 @@ async def process_claude_upload(
     return await _dispatch_import(
         session, background_tasks, current_user,
         "claude_json_normalize",
-        [{"s3_key": s3_key}],
-        account_override=account,
+        [{"s3_key": s3_key, "account": account}],
     )

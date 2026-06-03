@@ -191,17 +191,12 @@ async def process_import_job(
             from Cal_Backend.storage.s3 import download_import_data
             from Cal_Backend.user_data_import.schemas import (
                 ClaudeNativeConversation,
-                ClaudeAccountRef,
             )
             from Cal_Backend.user_data_import.extension_service import (
                 ClaudeExtensionImportService,
             )
  
-            # The S3 key and account override travel in the first data item
-            job_meta = data[0] if data else {}
-            s3_key = job_meta.get("s3_key")
-            account_override = job_meta.get("account")
-
+            s3_key = (data[0] if data else {}).get("s3_key")
             if not s3_key:
                 raise ValueError("claude_json_normalize job missing s3_key")
  
@@ -225,16 +220,21 @@ async def process_import_job(
                 )
  
             conversations = [ClaudeNativeConversation(**c) for c in raw_list]
-
-            # If an account override was provided via the UI/route, apply it
+ 
+            # Account override travels on the wrapper dict alongside s3_key.
+            # Direct path (/extension/ingest) does this injection inside
+            # _dispatch_import before the data hits S3; the S3-loaded path
+            # has to do it here, after the conversations are deserialised.
+            account_override = (data[0] if data else {}).get("account")
             if account_override:
-                logger.info("WORKER: applying account override: %s", account_override)
-                for conv in conversations:
-                    conv.account = ClaudeAccountRef(email_address=account_override)
-
+                from Cal_Backend.user_data_import.schemas import ClaudeAccountRef
+                for c in conversations:
+                    c.account = ClaudeAccountRef(email_address=account_override)
+ 
             service = ClaudeExtensionImportService(session, user)
             result_stats = await service.import_conversations(conversations)
             result_stats["json_s3_key"] = s3_key
+
             # Worker's total/processed will read len(data) which is 1 — patch
             # the visible numbers so the UI shows the real conversation count.
             result_stats["total_conversations"] = len(conversations)
@@ -248,21 +248,20 @@ async def process_import_job(
                 ChatGPTImportService,
             )
  
-            job_meta = data[0] if data else {}
-            s3_key = job_meta.get("s3_key")
-            account_override = job_meta.get("account")
-
+            s3_key = (data[0] if data else {}).get("s3_key")
             if not s3_key:
                 raise ValueError("chatgpt_zip_normalize job missing s3_key")
  
             conversations = await normalize_chatgpt_export_from_s3(s3_key)
-
-            # If an account override was provided via the UI/route, apply it
+ 
+            # Same pattern as claude_json_normalize: account rode along on
+            # the wrapper dict and needs to be applied after S3 unpacking.
+            # ChatGPTConversation.account is a plain string field.
+            account_override = (data[0] if data else {}).get("account")
             if account_override:
-                logger.info("WORKER: applying account override: %s", account_override)
-                for conv in conversations:
-                    conv.account = account_override
-
+                for c in conversations:
+                    c.account = account_override
+ 
             service = ChatGPTImportService(session, user)
             result_stats = await service.import_conversations(conversations)
             # total_items / processed_items get reported from result_stats
