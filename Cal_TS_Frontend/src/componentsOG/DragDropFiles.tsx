@@ -2,17 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { Upload, CheckCircle, XCircle, Loader, AlertCircle } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-
 type DetectedFormat = 'claude_native' | 'clean' | 'unknown';
 
 interface JobStats {
   conversations_created?: number;
   conversations_updated?: number;
+  conversations_skipped?: number;
   notes_created?: number;
   media_created?: number;
   errors?: Array<{ conversation_uuid?: string; conversation_id?: string; error: string }>;
 }
-
 interface JobStatus {
   job_id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
@@ -22,36 +21,52 @@ interface JobStatus {
   error?: string;
   updated_at: string;
 }
-
 interface QueuedResponse {
   job_id: string;
   status: string;
   total_items: number;
   message: string;
 }
-
+interface PresignResponse {
+  s3_key:       string;
+  upload_url:   string;
+  content_type: string;
+  expires_in:   number;
+}
 interface DragDropFilesProps {
   selectedAccount?: string | null;
 }
 
-const POLL_INTERVAL_MS = 2000;
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
+type Phase =
+  | 'idle'
+  | 'reading'      // parsing/detecting locally
+  | 'submitting'   // direct POST (small files)
+  | 'presigning'   // step 1 of large-file path
+  | 'uploading'    // step 2 of large-file path (PUT to S3 with progress)
+  | 'enqueuing'    // step 3 of large-file path
+  | 'polling';     // job-status polling (both paths)
+
+const POLL_INTERVAL_MS  = 2000;
+const API_BASE          = import.meta.env.VITE_API_BASE_URL ?? '';
+
+// API Gateway caps request bodies at 10 MB. Stay safely below that for the
+// direct POST; everything larger goes through the presigned-S3 path which has
+// no such limit (Lambda /tmp + memory cap is the only ceiling).
+const DIRECT_POST_LIMIT = 8 * 1024 * 1024;        // 8 MB
+const MAX_JSON_BYTES    = 2 * 1024 * 1024 * 1024; // 2 GB
 
 // ── Format detection ──────────────────────────────────────────────────────────
 function detectFormat(items: unknown[]): DetectedFormat {
   if (!Array.isArray(items) || items.length === 0) return 'unknown';
   const first = items[0] as Record<string, unknown> | null;
   if (!first || typeof first !== 'object') return 'unknown';
-
   if ('chat_messages' in first && 'uuid' in first) return 'claude_native';
   if ('messages' in first && ('title' in first || 'id' in first)) return 'clean';
-
   return 'unknown';
 }
 
 function endpointFor(fmt: DetectedFormat, account: string | null | undefined): string | null {
   const accountParam = account ? `?account=${encodeURIComponent(account)}` : '';
-
   if (fmt === 'claude_native') return `${API_BASE}/api/v1/ArjunJson/extension/ingest${accountParam}`;
   if (fmt === 'clean')         return `${API_BASE}/api/v1/ArjunJson/json${accountParam}`;
   return null;
@@ -63,14 +78,22 @@ function formatLabel(fmt: DetectedFormat): string {
   return 'unknown';
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
 
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function DragDropFiles({ selectedAccount }: DragDropFilesProps) {
-  const [isDragging,  setIsDragging]  = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [detected,    setDetected]    = useState<DetectedFormat | null>(null);
-  const [jobStatus,   setJobStatus]   = useState<JobStatus | null>(null);
-  const [error,       setError]       = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [phase,      setPhase]      = useState<Phase>('idle');
+  const [uploadPct,  setUploadPct]  = useState(0);
+  const [detected,   setDetected]   = useState<DetectedFormat | null>(null);
+  const [fileInfo,   setFileInfo]   = useState<{ name: string; size: number } | null>(null);
+  const [jobStatus,  setJobStatus]  = useState<JobStatus | null>(null);
+  const [error,      setError]      = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef      = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -90,51 +113,84 @@ export default function DragDropFiles({ selectedAccount }: DragDropFilesProps) {
         if (!res.ok) return;
         const data: JobStatus = await res.json();
         setJobStatus(data);
-        if (data.status === 'completed' || data.status === 'failed') stopPolling();
+        if (data.status === 'completed' || data.status === 'failed') {
+          stopPolling();
+          setPhase('idle');
+        }
       } catch { /* transient — keep polling */ }
     }, POLL_INTERVAL_MS);
   };
 
   const handleDragOver  = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true);  };
   const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); };
-
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files?.[0]) handleFileUpload(e.dataTransfer.files[0]);
   };
-
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) handleFileUpload(e.target.files[0]);
+    e.target.value = '';
   };
 
   const reset = () => {
     stopPolling();
     setDetected(null);
+    setFileInfo(null);
     setJobStatus(null);
     setError(null);
+    setPhase('idle');
+    setUploadPct(0);
   };
 
+  // ── XHR PUT with progress (used by the large-file path) ────────────────────
+  const putWithProgress = (
+    url: string,
+    blob: Blob,
+    contentType: string,
+    onProgress: (pct: number) => void,
+  ): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', url);
+      xhr.setRequestHeader('Content-Type', contentType);
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      });
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`S3 PUT failed: ${xhr.status} ${xhr.statusText}`));
+      });
+      xhr.addEventListener('error', () => reject(new Error('Network error during S3 upload')));
+      xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+      xhr.send(blob);
+    });
+
+  // ── Main pipeline ──────────────────────────────────────────────────────────
   const handleFileUpload = async (file: File) => {
-    if (!file.name.endsWith('.json')) {
-      setError('Only JSON files are accepted');
+    if (!file.name.toLowerCase().endsWith('.json')) {
+      setError('Only JSON files are accepted on this tab. ChatGPT ZIPs belong on the ChatGPT tab.');
+      return;
+    }
+    if (file.size > MAX_JSON_BYTES) {
+      setError(`File too large (${formatSize(file.size)}). Limit is 2 GB.`);
       return;
     }
     reset();
-    setIsUploading(true);
+    setFileInfo({ name: file.name, size: file.size });
+    setPhase('reading');
 
     let jsonData: unknown;
     try {
       jsonData = JSON.parse(await file.text());
     } catch {
       setError('Invalid JSON file format');
-      setIsUploading(false);
+      setPhase('idle');
       return;
     }
-
     if (!Array.isArray(jsonData)) {
       setError('JSON must be an array of conversations');
-      setIsUploading(false);
+      setPhase('idle');
       return;
     }
 
@@ -146,12 +202,30 @@ export default function DragDropFiles({ selectedAccount }: DragDropFilesProps) {
         'Could not recognise the conversation shape. ' +
         'Expected either Claude native (uuid/name/chat_messages) or the clean schema (id/title/messages).'
       );
-      setIsUploading(false);
+      setPhase('idle');
       return;
     }
 
+    // Branch: small files → direct POST. Large files → presigned-S3 path.
+    if (file.size <= DIRECT_POST_LIMIT) {
+      await submitDirect(fmt, jsonData);
+    } else if (fmt === 'claude_native') {
+      await submitViaPresign(file);
+    } else {
+      // Clean-schema large uploads not supported yet — /json has no presign sibling.
+      setError(
+        `This file is ${formatSize(file.size)} but only Claude-native exports support ` +
+        `the large-file pathway. Convert to native format or split into smaller files.`
+      );
+      setPhase('idle');
+    }
+  };
+
+  // ── Direct POST (≤ 8 MB) ───────────────────────────────────────────────────
+  const submitDirect = async (fmt: DetectedFormat, jsonData: unknown[]) => {
     const url = endpointFor(fmt, selectedAccount);
-    if (!url) { setIsUploading(false); return; }
+    if (!url) { setPhase('idle'); return; }
+    setPhase('submitting');
 
     try {
       const res = await fetch(url, {
@@ -163,7 +237,7 @@ export default function DragDropFiles({ selectedAccount }: DragDropFilesProps) {
 
       if (res.status === 401) {
         setError('Session expired. Please log in again.');
-        setIsUploading(false);
+        setPhase('idle');
         return;
       }
 
@@ -172,7 +246,7 @@ export default function DragDropFiles({ selectedAccount }: DragDropFilesProps) {
       if (!res.ok) {
         const detail = (body as { detail?: string }).detail ?? `Server ${res.status}`;
         setError(typeof detail === 'string' ? detail : JSON.stringify(detail));
-        setIsUploading(false);
+        setPhase('idle');
         return;
       }
 
@@ -185,6 +259,7 @@ export default function DragDropFiles({ selectedAccount }: DragDropFilesProps) {
           processed_items: 0,
           updated_at:      new Date().toISOString(),
         });
+        setPhase('polling');
         startPolling(queued.job_id);
       } else {
         setJobStatus({
@@ -192,23 +267,91 @@ export default function DragDropFiles({ selectedAccount }: DragDropFilesProps) {
           status:          'completed',
           total_items:     jsonData.length,
           processed_items: jsonData.length,
-          result_stats:    (body as { statistics?: JobStats }).statistics ?? body as JobStats,
+          result_stats:    (body as { statistics?: JobStats }).statistics ?? (body as JobStats),
           updated_at:      new Date().toISOString(),
         });
+        setPhase('idle');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error occurred');
-    } finally {
-      setIsUploading(false);
+      setPhase('idle');
     }
   };
 
+  // ── Presigned-S3 path (> 8 MB, Claude-native only) ─────────────────────────
+  const submitViaPresign = async (file: File) => {
+    try {
+      // 1. Get presigned PUT URL
+      setPhase('presigning');
+      const presignRes = await fetch(`${API_BASE}/api/v1/ArjunJson/claude/upload/presign`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!presignRes.ok) {
+        const err = await presignRes.json().catch(() => ({}));
+        throw new Error((err as { detail?: string }).detail ?? `Presign failed (${presignRes.status})`);
+      }
+      const presign = await presignRes.json() as PresignResponse;
+
+      // 2. PUT to S3 with live progress
+      setPhase('uploading');
+      await putWithProgress(presign.upload_url, file, presign.content_type, setUploadPct);
+
+      // 3. Tell backend the file landed — pass selectedAccount through so the
+      //    worker imports under the same account the direct path would.
+      setPhase('enqueuing');
+      const accountQuery = selectedAccount ? `?account=${encodeURIComponent(selectedAccount)}` : '';
+      const procRes = await fetch(
+        `${API_BASE}/api/v1/ArjunJson/claude/upload/process${accountQuery}`,
+        {
+          method:      'POST',
+          credentials: 'include',
+          headers:     { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ s3_key: presign.s3_key, file_size: file.size }),
+        },
+      );
+      if (!procRes.ok) {
+        const err = await procRes.json().catch(() => ({}));
+        throw new Error((err as { detail?: string }).detail ?? `Enqueue failed (${procRes.status})`);
+      }
+      const queued = await procRes.json() as QueuedResponse;
+
+      setJobStatus({
+        job_id:          queued.job_id,
+        status:          'pending',
+        total_items:     queued.total_items ?? 1,
+        processed_items: 0,
+        updated_at:      new Date().toISOString(),
+      });
+      setPhase('polling');
+      startPolling(queued.job_id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+      setPhase('idle');
+    }
+  };
+
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const isBusy = phase !== 'idle';
   const isDone = jobStatus?.status === 'completed' || jobStatus?.status === 'failed';
   const progressPct =
     jobStatus && jobStatus.total_items > 0
       ? Math.round((jobStatus.processed_items / jobStatus.total_items) * 100)
       : 0;
 
+  const phaseLabel = (): string => {
+    switch (phase) {
+      case 'reading':     return 'Reading file…';
+      case 'submitting':  return 'Uploading…';
+      case 'presigning':  return 'Requesting upload URL…';
+      case 'uploading':   return `Uploading to S3 ${uploadPct}%`;
+      case 'enqueuing':   return 'Queueing import…';
+      case 'polling':     return 'Importing…';
+      default:            return 'Processing…';
+    }
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="p-6">
       {/* Drop zone */}
@@ -225,30 +368,50 @@ export default function DragDropFiles({ selectedAccount }: DragDropFilesProps) {
               ? 'border-blue-400 bg-blue-50 scale-[1.02] shadow-2xl shadow-blue-200'
               : 'border-slate-300 bg-white hover:border-blue-300 hover:shadow-xl hover:shadow-blue-100'
             }
-            ${isUploading ? 'pointer-events-none opacity-75' : ''}
+            ${isBusy ? 'pointer-events-none opacity-90' : ''}
           `}
         >
           <input
             ref={fileInputRef}
             type="file"
-            accept=".json"
+            accept=".json,application/json"
             onChange={handleFileSelect}
             className="hidden"
           />
 
           <div className="flex flex-col items-center gap-6">
-            {isUploading ? (
+            {isBusy ? (
               <>
                 <Loader className="w-16 h-16 text-blue-500 animate-spin" />
                 <div className="space-y-2">
-                  <p className="text-xl font-medium text-slate-800">Processing…</p>
+                  <p className="text-xl font-medium text-slate-800">{phaseLabel()}</p>
                   <p className="text-slate-500">
                     {detected ? `Detected: ${formatLabel(detected)}` : 'Reading file'}
                   </p>
+                  {fileInfo && (
+                    <p className="text-xs text-slate-400">
+                      {fileInfo.name} · {formatSize(fileInfo.size)}
+                      {fileInfo.size > DIRECT_POST_LIMIT && ' · large-file path'}
+                    </p>
+                  )}
                   {selectedAccount && (
                     <p className="text-xs text-blue-600">Account: {selectedAccount}</p>
                   )}
                 </div>
+
+                {phase === 'uploading' && (
+                  <div className="w-full max-w-md mt-2">
+                    <div className="flex justify-between text-xs text-slate-600 mb-1">
+                      <span>Uploading to S3</span><span>{uploadPct}%</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-200"
+                        style={{ width: `${uploadPct}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -266,7 +429,7 @@ export default function DragDropFiles({ selectedAccount }: DragDropFilesProps) {
                   </p>
                   <p className="text-slate-500">or click to browse</p>
                   <p className="text-xs text-slate-400 mt-2">
-                    Accepts the native Claude export (uuid / chat_messages) or the clean schema (id / messages).
+                    Native Claude (uuid/chat_messages) or clean schema (id/messages). Up to 2 GB.
                   </p>
                 </div>
               </>
@@ -302,6 +465,7 @@ export default function DragDropFiles({ selectedAccount }: DragDropFilesProps) {
               </h2>
               <p className="text-sm text-slate-500">
                 Detected: <span className="font-mono">{formatLabel(detected ?? 'unknown')}</span>
+                {fileInfo && ` · ${formatSize(fileInfo.size)}`}
               </p>
               {selectedAccount && (
                 <p className="text-xs text-blue-600 mt-0.5">Account: {selectedAccount}</p>
@@ -332,6 +496,9 @@ export default function DragDropFiles({ selectedAccount }: DragDropFilesProps) {
               )}
               {jobStatus.result_stats.conversations_updated != null && (
                 <StatCard label="Conversations updated" value={jobStatus.result_stats.conversations_updated} />
+              )}
+              {jobStatus.result_stats.conversations_skipped != null && (
+                <StatCard label="Conversations skipped" value={jobStatus.result_stats.conversations_skipped} />
               )}
               {jobStatus.result_stats.notes_created != null && (
                 <StatCard label="Messages imported" value={jobStatus.result_stats.notes_created} />
@@ -391,6 +558,7 @@ export default function DragDropFiles({ selectedAccount }: DragDropFilesProps) {
               {detected && (
                 <p className="text-xs text-slate-400 mt-2">
                   Detected format: <span className="font-mono">{formatLabel(detected)}</span>
+                  {fileInfo && ` · ${formatSize(fileInfo.size)}`}
                 </p>
               )}
             </div>

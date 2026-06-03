@@ -40,6 +40,12 @@ class ChatGPTUploadProcessRequest(BaseModel):
     file_size: Optional[int] = None  # browser-reported, informational only
 
 
+class ClaudeUploadProcessRequest(BaseModel):
+    """Body for /claude/upload/process — points at a freshly-PUT JSON in S3."""
+    s3_key: str
+    file_size: Optional[int] = None
+
+
 Json_router = APIRouter()
 ACCESS_TOKEN_BEARER = AccessTokenBearerC()
 HEADER_TOKEN_BEARER = TokenBearer(cookie_name="access_token", auto_error=True)
@@ -163,8 +169,9 @@ async def _dispatch_import(
             if job_type == "extension_ingest":
                 # Claude native shape: account is a dict {"email_address": ..., "uuid": ...}
                 item["account"] = {"email_address": account_override}
-            elif job_type in ("chatgpt_ingest", "json", "chatgpt_zip_normalize"):
+            elif job_type in ("chatgpt_ingest", "json", "chatgpt_zip_normalize", "claude_json_normalize"):
                 # Clean/ChatGPT shape: account is a plain string
+                # For normalize jobs, this travels in the job metadata dict
                 item["account"] = account_override
             # google_keep jobs don't use account — skip
  
@@ -597,4 +604,60 @@ async def download_failure_report(
         media_type="text/plain",
         filename=filename,
         headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@Json_router.post("/claude/upload/presign", status_code=status.HTTP_200_OK)
+async def presign_claude_upload(
+    current_user: User = Depends(get_current_userC),
+):
+    """
+    Step 1 of the large-Claude-export upload flow. Browser uses the returned
+    URL to PUT the JSON directly to S3, bypassing API Gateway\\'s 10 MB body cap.
+    Key is namespaced to the calling user.
+    """
+    s3_key = f"claude-uploads/{current_user.id}/{uuid4().hex}.json"
+    url = await presign_import_upload(s3_key, content_type="application/json")
+    return {
+        "s3_key":       s3_key,
+        "upload_url":   url,
+        "content_type": "application/json",
+        "expires_in":   900,
+    }
+ 
+ 
+@Json_router.post("/claude/upload/process", status_code=status.HTTP_202_ACCEPTED)
+async def process_claude_upload(
+    body: ClaudeUploadProcessRequest,
+    background_tasks: BackgroundTasks,
+    account: Optional[str] = Query(None, description="Override account email for all conversations"),
+    current_user: User = Depends(get_current_userC),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Step 3 of the flow. Verify the key is in this user\\'s namespace and that
+    the object actually landed; dispatch a claude_json_normalize job. The
+    worker downloads, parses, and runs ClaudeExtensionImportService.
+    """
+    s3_key = body.s3_key or ""
+    expected_prefix = f"claude-uploads/{current_user.id}/"
+    if not s3_key.startswith(expected_prefix):
+        raise HTTPException(
+            status_code=403,
+            detail="s3_key is outside your upload namespace.",
+        )
+    if not s3_key.endswith(".json"):
+        raise HTTPException(status_code=400, detail="s3_key must point at a .json file")
+ 
+    if not await import_object_exists(s3_key):
+        raise HTTPException(
+            status_code=404,
+            detail="JSON not found at that key — was the PUT successful?",
+        )
+ 
+    return await _dispatch_import(
+        session, background_tasks, current_user,
+        "claude_json_normalize",
+        [{"s3_key": s3_key}],
+        account_override=account,
     )

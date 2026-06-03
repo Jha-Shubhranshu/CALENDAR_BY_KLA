@@ -182,6 +182,63 @@ async def process_import_job(
             service = ImportService(session, user)
             result_stats = await service.import_conversations(data)
 
+        elif job_type == "claude_json_normalize":
+            # data == [{"s3_key": "claude-uploads/<user>/<uuid>.json"}]
+            # Large Claude exports come through here to bypass the 10 MB
+            # API-Gateway body cap. The browser PUTs the JSON to S3 directly,
+            # we download it here and run the same import service as
+            # extension_ingest.
+            from Cal_Backend.storage.s3 import download_import_data
+            from Cal_Backend.user_data_import.schemas import (
+                ClaudeNativeConversation,
+                ClaudeAccountRef,
+            )
+            from Cal_Backend.user_data_import.extension_service import (
+                ClaudeExtensionImportService,
+            )
+ 
+            # The S3 key and account override travel in the first data item
+            job_meta = data[0] if data else {}
+            s3_key = job_meta.get("s3_key")
+            account_override = job_meta.get("account")
+
+            if not s3_key:
+                raise ValueError("claude_json_normalize job missing s3_key")
+ 
+            logger.info("WORKER: downloading Claude JSON from S3 key=%s", s3_key)
+            raw_bytes = await download_import_data(s3_key)
+            if not raw_bytes:
+                raise ValueError(f"S3 object at {s3_key} was empty")
+            logger.info(
+                "WORKER: downloaded %.1f MB Claude JSON",
+                len(raw_bytes) / 1024 / 1024,
+            )
+ 
+            try:
+                raw_list = json.loads(raw_bytes)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Claude JSON parse failed: {exc}") from exc
+ 
+            if not isinstance(raw_list, list):
+                raise ValueError(
+                    f"Claude JSON must be a top-level array, got {type(raw_list).__name__}"
+                )
+ 
+            conversations = [ClaudeNativeConversation(**c) for c in raw_list]
+
+            # If an account override was provided via the UI/route, apply it
+            if account_override:
+                logger.info("WORKER: applying account override: %s", account_override)
+                for conv in conversations:
+                    conv.account = ClaudeAccountRef(email_address=account_override)
+
+            service = ClaudeExtensionImportService(session, user)
+            result_stats = await service.import_conversations(conversations)
+            result_stats["json_s3_key"] = s3_key
+            # Worker's total/processed will read len(data) which is 1 — patch
+            # the visible numbers so the UI shows the real conversation count.
+            result_stats["total_conversations"] = len(conversations)
+
         elif job_type == "chatgpt_zip_normalize":
             # data == [{"s3_key": "chatgpt-uploads/<user>/<uuid>.zip"}]
             from Cal_Backend.user_data_import.chatgpt_normalizer import (
@@ -191,11 +248,21 @@ async def process_import_job(
                 ChatGPTImportService,
             )
  
-            s3_key = (data[0] if data else {}).get("s3_key")
+            job_meta = data[0] if data else {}
+            s3_key = job_meta.get("s3_key")
+            account_override = job_meta.get("account")
+
             if not s3_key:
                 raise ValueError("chatgpt_zip_normalize job missing s3_key")
  
             conversations = await normalize_chatgpt_export_from_s3(s3_key)
+
+            # If an account override was provided via the UI/route, apply it
+            if account_override:
+                logger.info("WORKER: applying account override: %s", account_override)
+                for conv in conversations:
+                    conv.account = account_override
+
             service = ChatGPTImportService(session, user)
             result_stats = await service.import_conversations(conversations)
             # total_items / processed_items get reported from result_stats
