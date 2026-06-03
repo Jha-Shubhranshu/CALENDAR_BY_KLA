@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 from uuid import uuid4
 from pydantic import BaseModel
+from fastapi import Query
 
 
 import logging
@@ -119,22 +120,19 @@ async def _dispatch_import(
     user: User,
     job_type: str,
     data: list,
+    account_override: str | None = None,        # ← NEW
 ) -> dict:
     """
     Creates an ImportJob record and dispatches work.
-
-    Production (SQS_IMPORT_QUEUE_URL set):
-        Serialises data → S3, sends SQS message, returns immediately.
-
-    Local dev (SQS not configured):
-        Schedules work via FastAPI BackgroundTasks, returns immediately.
+    If account_override is set, it is injected into every item so the
+    worker/service uses it as the conversation's account field.
     """
     from Cal_Backend.config import get_settings
     settings = get_settings()
-
+ 
     total = len(data)
     job_id = str(uuid.uuid4())
-
+ 
     job = ImportJob(
         id=UUID(job_id),
         user_id=user.id,
@@ -144,7 +142,7 @@ async def _dispatch_import(
     )
     session.add(job)
     await session.commit()
-
+ 
     await set_job_status(job_id, {
         "job_id": job_id,
         "status": "pending",
@@ -152,19 +150,33 @@ async def _dispatch_import(
         "processed_items": 0,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     })
-
+ 
+    # Serialise items to plain dicts
+    serialisable = [
+        item if isinstance(item, dict) else item.model_dump()
+        for item in data
+    ]
+ 
+    # ── Inject account override ──────────────────────────────────────
+    if account_override:
+        for item in serialisable:
+            if job_type == "extension_ingest":
+                # Claude native shape: account is a dict {"email_address": ..., "uuid": ...}
+                item["account"] = {"email_address": account_override}
+            elif job_type in ("chatgpt_ingest", "json", "chatgpt_zip_normalize"):
+                # Clean/ChatGPT shape: account is a plain string
+                item["account"] = account_override
+            # google_keep jobs don't use account — skip
+ 
     if settings.SQS_IMPORT_QUEUE_URL and settings.S3_BUCKET_NAME:
         from Cal_Backend.storage.s3 import upload_import_data
         from Cal_Backend.queue.sqs import enqueue_import_job
-
+ 
         s3_key = f"imports/{user.id}/{job_id}/data.json"
-        payload = json.dumps({"data": [
-            item if isinstance(item, dict) else item.model_dump()
-            for item in data
-        ]}).encode()
-
+        payload = json.dumps({"data": serialisable}).encode()
+ 
         await upload_import_data(payload, s3_key)
-
+ 
         result = await session.execute(
             select(ImportJob).where(ImportJob.id == UUID(job_id))
         )
@@ -173,21 +185,16 @@ async def _dispatch_import(
             job_rec.s3_key = s3_key
             session.add(job_rec)
             await session.commit()
-
+ 
         await enqueue_import_job(job_id, s3_key, str(user.id), job_type)
     else:
         from Cal_Backend.user_data_import.worker import process_import_job
-        # Serialise to plain dicts so the worker can reconstruct models
-        serialisable = [
-            item if isinstance(item, dict) else item.model_dump()
-            for item in data
-        ]
         background_tasks.add_task(
             process_import_job,
             job_id, str(user.id), job_type,
             in_memory_data=serialisable,
         )
-
+ 
     return {
         "job_id": job_id,
         "status": "pending",
@@ -195,6 +202,7 @@ async def _dispatch_import(
         "message": f"Import queued. {total} items to process.",
         "poll_url": f"/api/v1/ArjunJson/import/status/{job_id}",
     }
+ 
 
 
 # ---------------------------------------------------------------------------
@@ -269,6 +277,7 @@ async def list_import_jobs(
 async def ingest_from_extension(
     data: List[ClaudeNativeConversation],
     background_tasks: BackgroundTasks,
+    account: Optional[str] = Query(None, description="Override account email for all conversations"),  # ← NEW
     current_user: User = Depends(get_current_userC),
     session: AsyncSession = Depends(get_session),
 ):
@@ -281,7 +290,8 @@ async def ingest_from_extension(
     
     return await _dispatch_import(
         session, background_tasks, current_user,
-        "extension_ingest", serialisable,
+        "extension_ingest", serialisable, account_override=account,          # ← NEW
+
     )
 
 
@@ -292,23 +302,19 @@ async def ingest_from_extension(
 async def ingest_chatgpt(
     data: List[ChatGPTConversation],
     background_tasks: BackgroundTasks,
+    account: Optional[str] = Query(None, description="Override account email for all conversations"),  # ← NEW
     current_user: User = Depends(get_current_userC),
     session: AsyncSession = Depends(get_session),
 ):
-    """
-    Accept ChatGPT conversations in the clean schema. Used by:
-      - a future ChatGPT browser extension (mirroring the Claude one), which
-        will send images as data:... URLs inside `metadata.images`
-      - external normalizers that already uploaded images to S3 / a CDN
-    """
     if not data:
         raise HTTPException(status_code=400, detail="No conversations provided")
- 
     serialisable = [conv.model_dump() for conv in data]
     return await _dispatch_import(
         session, background_tasks, current_user,
         "chatgpt_ingest", serialisable,
+        account_override=account,          # ← NEW
     )
+ 
  
  
 @Json_router.post("/chatgpt/upload/presign", status_code=status.HTTP_200_OK)
@@ -338,43 +344,25 @@ async def presign_chatgpt_upload(
 async def process_chatgpt_upload(
     body: ChatGPTUploadProcessRequest,
     background_tasks: BackgroundTasks,
+    account: Optional[str] = Query(None, description="Override account email for all conversations"),  # ← NEW
     current_user: User = Depends(get_current_userC),
     session: AsyncSession = Depends(get_session),
 ):
-    """
-    Step 3 of the large-export upload flow. The browser tells us where the
-    ZIP landed; we verify the object exists and is in this user\\'s namespace,
-    then dispatch a chatgpt_zip_normalize job for the worker Lambda to pick
-    up. Normalization (parsing, image extraction to S3 media bucket, etc.)
-    happens inside the worker, not here, so this endpoint stays fast.
-    """
     s3_key = body.s3_key or ""
     expected_prefix = f"chatgpt-uploads/{current_user.id}/"
     if not s3_key.startswith(expected_prefix):
-        raise HTTPException(
-            status_code=403,
-            detail="s3_key is outside your upload namespace.",
-        )
+        raise HTTPException(status_code=403, detail="s3_key is outside your upload namespace.")
     if not s3_key.endswith(".zip"):
         raise HTTPException(status_code=400, detail="s3_key must point at a .zip file")
- 
     if not await import_object_exists(s3_key):
-        raise HTTPException(
-            status_code=404,
-            detail="ZIP not found at that key — was the PUT successful?",
-        )
+        raise HTTPException(status_code=404, detail="ZIP not found at that key — was the PUT successful?")
  
-    # The worker downloads the ZIP from S3, normalizes, and runs the import.
-    # We pass the key as in-memory data so it survives both the SQS path
-    # (key goes inside the job payload uploaded to the imports bucket) and
-    # the local BackgroundTasks path.
     return await _dispatch_import(
         session, background_tasks, current_user,
         "chatgpt_zip_normalize",
-        [{"s3_key": s3_key}],   # list[dict] so total_items=1 is sane
+        [{"s3_key": s3_key, "account": account}],   # ← account travels with the zip ref
+        account_override=account,                     # ← NEW
     )
-
-
 
 
 
@@ -387,13 +375,16 @@ async def process_chatgpt_upload(
 async def import_from_json(
     data: List[Dict[str, Any]],
     background_tasks: BackgroundTasks,
+    account: Optional[str] = Query(None, description="Override account email for all conversations"),  # ← NEW
     current_user: User = Depends(get_current_userC),
     session: AsyncSession = Depends(get_session),
 ):
-    """Queue an import from cleaned conversation JSON. Returns job_id to poll."""
     validated = validate_import_data(data)
-    return await _dispatch_import(session, background_tasks, current_user, "json", validated)
-
+    return await _dispatch_import(
+        session, background_tasks, current_user,
+        "json", validated,
+        account_override=account,          # ← NEW
+    )
 
 @Json_router.post("/upload", status_code=status.HTTP_202_ACCEPTED)
 async def import_from_file(

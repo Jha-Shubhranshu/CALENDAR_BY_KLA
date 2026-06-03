@@ -11,6 +11,9 @@ from Cal_Backend.Calendar.route import calendar_router
 import traceback
 from fastapi.responses import PlainTextResponse
 from fastapi import Request
+from Cal_Backend.accounts.route import accounts_router
+
+
 
 # from src.books.routes import book_router
 # from src.reviews.routes import review_router
@@ -104,6 +107,8 @@ app.include_router(label_router, prefix=f"{version_prefix}/labels", tags=["label
 app.include_router(conversation_router, prefix="/api/v1/conversations", tags=["conversations"])
 app.include_router(project_router, prefix="/api/v1/projects", tags=["projects"])
 app.include_router(calendar_router, prefix="/api/v1/calendar", tags=["calendar"])
+app.include_router(accounts_router, prefix="/api/v1/accounts", tags=["accounts"])
+
 
 # app.include_router(review_router, prefix=f"{version_prefix}/reviews", tags=["reviews"])
 # app.include_router(tags_router, prefix=f"{version_prefix}/tags", tags=["tags"])

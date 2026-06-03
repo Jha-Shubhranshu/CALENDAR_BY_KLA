@@ -405,4 +405,34 @@ class ImportJob(SQLModel, table=True):
 
     
     
-    
+"""
+ADD THIS MODEL to Cal_Backend/db/models.py
+and add the relationship to the User model:
+    accounts: List["UserAccount"] = Relationship(back_populates="user")
+"""
+
+class UserAccount(SQLModel, table=True):
+    """
+    Stores email addresses (accounts) a user imports conversations from.
+    E.g. a user may have work@company.com on Claude and personal@gmail.com on ChatGPT.
+    """
+    __tablename__ = "user_accounts"
+
+    id: UUID = Field(
+        default_factory=uuid.uuid4,
+        sa_column=Column(pg.UUID, nullable=False, primary_key=True),
+    )
+    user_id: UUID = Field(foreign_key="users.id", ondelete="CASCADE", index=True)
+    email_address: str = Field(nullable=False)
+    label: Optional[str] = Field(default=None)          # "Work", "Personal", etc.
+    created_at: datetime = Field(
+        sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False),
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
+
+    # Unique constraint: one email per user
+    __table_args__ = (
+        UniqueConstraint("user_id", "email_address", name="uix_user_account_email"),
+    )
+
+    user: "User" = Relationship(back_populates="accounts")

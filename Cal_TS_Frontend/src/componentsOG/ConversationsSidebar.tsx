@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { X, MessageSquare, ChevronDown, Check, Trash2, Loader2 } from 'lucide-react';
+import { X, MessageSquare, ChevronDown, Check, Trash2, Loader2, Plus } from 'lucide-react';
 import type { NotebookSource } from '../typesOG/conversation.types';
 import { useConversations } from '../hooksOG/useConversations';
 import { useClickOutside } from '../hooksOG/Intelligenceeffects/useClickOutside';
+import { useAccounts } from '../hooksOG/useAccounts';
 
 interface ConversationsSidebarProps {
   source: NotebookSource;
@@ -18,38 +19,49 @@ export function ConversationsSidebar({
   onDeleteConversation
 }: ConversationsSidebarProps) {
   const { conversations, loading, deletingId, removeConversation } = useConversations(source, onDeleteConversation);
+  const { accounts, addAccount } = useAccounts();
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
+  const [isAddingAccount, setIsAddingAccount] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addSaving, setAddSaving] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const addInputRef = useRef<HTMLInputElement>(null);
 
-  useClickOutside(dropdownRef, () => setIsAccountDropdownOpen(false));
+  useClickOutside(dropdownRef, () => {
+    setIsAccountDropdownOpen(false);
+    setIsAddingAccount(false);
+    setAddError(null);
+  });
 
-  // Extract unique accounts
+  // Extract unique accounts from conversations + saved accounts
   const availableAccounts = useMemo(() => {
-    const accounts = new Set<string>();
+    const accountSet = new Set<string>();
     conversations.forEach(c => {
-      if (c.account) accounts.add(c.account);
+      if (c.account) accountSet.add(c.account);
     });
-    return Array.from(accounts).sort();
-  }, [conversations]);
+    // Also include saved accounts that might not have conversations yet
+    accounts.forEach(a => accountSet.add(a.email_address));
+    return Array.from(accountSet).sort();
+  }, [conversations, accounts]);
 
   // Initialize selected accounts
   useEffect(() => {
     if (availableAccounts.length > 0) {
-      // If no accounts selected (initial load), select all
       setSelectedAccounts(prev => prev.length === 0 ? availableAccounts : prev);
     }
   }, [availableAccounts]);
 
+  // Focus input when add mode activates
+  useEffect(() => {
+    if (isAddingAccount) addInputRef.current?.focus();
+  }, [isAddingAccount]);
+
   // Filter conversations
   const filteredConversations = useMemo(() => {
     if (availableAccounts.length === 0) return conversations;
-    
     return conversations.filter(c => {
-      // If conversation has no account, show it only if all accounts are selected (default behavior)
-      // or maybe always show it? Let's assume we filter strictly by what's selected if it has an account.
-      // If it has NO account, we'll display it always for now to avoid hiding data, 
-      // unless we want a "No Account" filter.
       if (!c.account) return true;
       return selectedAccounts.includes(c.account);
     });
@@ -68,6 +80,27 @@ export function ConversationsSidebar({
       setSelectedAccounts([]);
     } else {
       setSelectedAccounts(availableAccounts);
+    }
+  };
+
+  const handleAddAccount = async () => {
+    const email = newEmail.trim();
+    if (!email) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAddError('Enter a valid email');
+      return;
+    }
+    setAddSaving(true);
+    setAddError(null);
+    const result = await addAccount(email);
+    setAddSaving(false);
+    if (result) {
+      setNewEmail('');
+      setIsAddingAccount(false);
+      // Auto-select the new account in the filter
+      setSelectedAccounts(prev => [...prev, result.email_address]);
+    } else {
+      setAddError('Already exists');
     }
   };
 
@@ -125,7 +158,7 @@ export function ConversationsSidebar({
             </button>
             
             {isAccountDropdownOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-md shadow-lg py-1 border border-gray-100 max-h-64 overflow-y-auto text-gray-800 z-50">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-md shadow-lg py-1 border border-gray-100 max-h-72 overflow-y-auto text-gray-800 z-50">
                 <button
                   onClick={toggleAll}
                   className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 font-medium border-b border-gray-100"
@@ -148,6 +181,49 @@ export function ConversationsSidebar({
                     <span className="truncate">{account}</span>
                   </button>
                 ))}
+
+                {/* Divider + Add new account */}
+                <div className="border-t border-gray-100 mt-1" />
+                {isAddingAccount ? (
+                  <div className="px-3 py-2">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        ref={addInputRef}
+                        type="email"
+                        value={newEmail}
+                        onChange={(e) => { setNewEmail(e.target.value); setAddError(null); }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleAddAccount();
+                          if (e.key === 'Escape') { setIsAddingAccount(false); setAddError(null); }
+                        }}
+                        placeholder="email@example.com"
+                        className="flex-1 min-w-0 px-2 py-1.5 text-xs rounded border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300 focus:border-blue-400"
+                      />
+                      <button
+                        onClick={handleAddAccount}
+                        disabled={addSaving || !newEmail.trim()}
+                        className="p-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                      >
+                        {addSaving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                      </button>
+                      <button
+                        onClick={() => { setIsAddingAccount(false); setNewEmail(''); setAddError(null); }}
+                        className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                    {addError && <p className="text-[10px] text-red-500 mt-1 px-0.5">{addError}</p>}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsAddingAccount(true)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center gap-2 text-blue-600 font-medium"
+                  >
+                    <Plus size={14} />
+                    Add new account
+                  </button>
+                )}
               </div>
             )}
           </div>

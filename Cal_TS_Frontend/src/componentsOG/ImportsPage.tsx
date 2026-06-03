@@ -5,6 +5,8 @@ import DragDropFiles from './DragDropFiles';
 import { GoogleKeepImport } from './GoogleKeepImport';
 import { GoogleKeepBulkImport } from './Googlekeepbulkimport';
 import { ChatGPTImport } from './ChatGPTImport';
+import { AccountSelector } from './AccountSelector';
+import { useAccounts } from '../hooksOG/useAccounts';
 
 type Source = 'claude' | 'chatgpt' | 'keep-single' | 'keep-bulk';
 
@@ -13,6 +15,7 @@ interface Tab {
   label: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
+  needsAccount: boolean;
 }
 
 const TABS: Tab[] = [
@@ -21,29 +24,37 @@ const TABS: Tab[] = [
     label: 'Claude',
     description: 'Drop a Claude export JSON',
     icon: MessageSquare,
+    needsAccount: true,
   },
   {
     id: 'chatgpt',
     label: 'ChatGPT',
     description: 'Upload a ChatGPT export ZIP',
     icon: Database,
+    needsAccount: true,
   },
   {
     id: 'keep-single',
     label: 'Google Keep',
     description: 'Single notes JSON',
     icon: StickyNote,
+    needsAccount: false,
   },
   {
     id: 'keep-bulk',
     label: 'Google Keep (Bulk)',
     description: 'Many JSONs at once',
     icon: FolderArchive,
+    needsAccount: false,
   },
 ];
 
 export default function ImportsPage() {
   const [active, setActive] = useState<Source>('claude');
+  const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
+  const { accounts, loading: accountsLoading, addAccount, removeAccount } = useAccounts();
+
+  const activeTab = TABS.find((t) => t.id === active)!;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
@@ -90,10 +101,27 @@ export default function ImportsPage() {
           })}
         </div>
 
+        {/* Account selector — shown for conversation-based imports */}
+        {activeTab.needsAccount && (
+          <div className="mb-4 max-w-sm">
+            <label className="block text-xs font-medium text-slate-500 mb-1.5 uppercase tracking-wide">
+              Import as account
+            </label>
+            <AccountSelector
+              accounts={accounts}
+              selectedAccount={selectedAccount}
+              onSelect={setSelectedAccount}
+              onAdd={addAccount}
+              onRemove={removeAccount}
+              loading={accountsLoading}
+            />
+          </div>
+        )}
+
         {/* Panel — render the chosen importer */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
-          {active === 'claude'      && <DragDropFiles />}
-          {active === 'chatgpt'     && <ChatGPTImport />}
+          {active === 'claude'      && <DragDropFiles selectedAccount={selectedAccount} />}
+          {active === 'chatgpt'     && <ChatGPTImport selectedAccount={selectedAccount} />}
           {active === 'keep-single' && <GoogleKeepImport />}
           {active === 'keep-bulk'   && <GoogleKeepBulkImport />}
         </div>
