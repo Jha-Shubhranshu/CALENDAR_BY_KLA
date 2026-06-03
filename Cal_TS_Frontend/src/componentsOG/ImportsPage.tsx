@@ -121,7 +121,7 @@ export default function ImportsPage() {
         {/* Panel — render the chosen importer */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
           {active === 'claude'      && <DragDropFiles selectedAccount={selectedAccount} />}
-          {active === 'chatgpt'     && <ChatGPTImport selectedAccount={selectedAccount} />}
+          {active === 'chatgpt'     && <ChatGPTImport />}
           {active === 'keep-single' && <GoogleKeepImport />}
           {active === 'keep-bulk'   && <GoogleKeepBulkImport />}
         </div>
