@@ -1,191 +1,112 @@
-# Redis for token revoking functionality with support for different token types
-import json
+"""
+Hobby-mode shim that replaces Redis with a no-op blocklist and a
+Postgres-backed job status read.
+
+Why this exists:
+  - JWT blocklist: for a single-user app, immediate revocation has limited
+    value (you control the only account). If a token ever leaks, rotate
+    JWT_SECRET in SSM and every outstanding token dies in one shot.
+    `token_in_blocklist` always returns False; revoked tokens stay valid
+    until natural JWT expiry (currently 30 days — consider shortening
+    access tokens if that worries you).
+  - Job status: `ImportJob` rows in Postgres already carry the same data
+    the Redis snapshot did. `get_job_status` now reads from there.
+  - All other modules keep importing from this file unchanged. This is
+    a drop-in replacement.
+"""
 import logging
-
-import redis.asyncio as redis
-
-from Cal_Backend.config import Config
+from typing import Optional
+from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
-# TTL Constants
-ACCESS_TOKEN_EXPIRY  = 30 * 24 * 3600 # 30 days
-REFRESH_TOKEN_EXPIRY = 30 * 24 * 3600 # 30 days
-IMPORT_JOB_TTL       = 24 * 3600     # 24 hours
-
-# Legacy constant for backward compatibility
-JTI_EXPIRY = ACCESS_TOKEN_EXPIRY
-
-# Module-scoped client. redis-py opens connections lazily on first await.
-#
-# IMPORTANT for the SQS worker Lambda: this object survives across warm
-# invocations, so the pool MUST be drained inside each invocation's event
-# loop before that loop is closed. See handler_worker._close_redis_pool.
-# Without that, the next invocation crashes with "Event loop is closed".
-# token_blocklist = redis.Redis(
-#     host=Config.REDIS_HOST,
-#     port=Config.REDIS_PORT,
-#     password=Config.REDIS_PASSWORD,
-#     db=0,
-# )
-
-_redis_client: redis.Redis | None = None
-_redis_loop_id: int | None = None
+# Kept for backward compat with anything that imports these constants.
+ACCESS_TOKEN_EXPIRY  = 30 * 24 * 3600
+REFRESH_TOKEN_EXPIRY = 30 * 24 * 3600
+IMPORT_JOB_TTL       = 24 * 3600
+JTI_EXPIRY           = ACCESS_TOKEN_EXPIRY
 
 
-def _get_redis() -> redis.Redis:
-    """
-    Return a Redis client bound to the **current** event loop.
-    If the loop changed (warm Lambda reuse), tear down the stale
-    client and build a fresh one so we never hit
-    'Event loop is closed'.
-    """
-    global _redis_client, _redis_loop_id
-    import asyncio
-
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    current_id = id(loop) if loop else None
-
-    if _redis_client is not None and current_id == _redis_loop_id:
-        return _redis_client
-
-    # Stale client from a previous invocation's loop — discard it.
-    if _redis_client is not None:
-        try:
-            _redis_client.connection_pool.disconnect()
-        except Exception:
-            pass
-
-    _redis_client = redis.Redis(
-        host=Config.REDIS_HOST,
-        port=Config.REDIS_PORT,
-        password=Config.REDIS_PASSWORD,
-        db=0,
-    )
-    _redis_loop_id = current_id
-    return _redis_client
-
-
+# ─────────────────────── JWT blocklist (no-op) ───────────────────────
 
 async def add_jti_to_blocklist(jti: str, is_refresh: bool = False) -> None:
-    """
-    Add JWT ID to blocklist with appropriate TTL.
-
-    Args:
-        jti: JWT ID to blacklist
-        is_refresh: True for refresh tokens, False for access tokens
-    """
-    try:
-        expiry_time = REFRESH_TOKEN_EXPIRY if is_refresh else ACCESS_TOKEN_EXPIRY
-        await _get_redis().set(name=jti, value="", ex=expiry_time)
-    except Exception as e:
-        # Log but don't crash the request — auth still works, the token just
-        # won't be revoked. CloudWatch metric filter on "Redis error" should
-        # alarm if this becomes frequent.
-        logger.error("Redis error in add_jti_to_blocklist: %s", e, exc_info=True)
+    """No-op. See module docstring for rationale."""
+    logger.debug("Blocklist disabled; ignoring jti=%s (refresh=%s)", jti, is_refresh)
 
 
 async def add_access_jti_to_blocklist(jti: str) -> None:
-    """Convenience wrapper for access tokens."""
     await add_jti_to_blocklist(jti, is_refresh=False)
 
 
 async def add_refresh_jti_to_blocklist(jti: str) -> None:
-    """Convenience wrapper for refresh tokens."""
     await add_jti_to_blocklist(jti, is_refresh=True)
 
 
 async def token_in_blocklist(jti: str) -> bool:
-    """
-    Check if a JWT ID is in the blocklist.
-
-    Fails OPEN (returns False, allowing the token) if Redis is unreachable —
-    the alternative is taking the whole API down because we can't check
-    revocation. The error is logged so monitoring can catch a Redis outage.
-    """
-    try:
-        result = await _get_redis().get(jti)
-        return result is not None
-    except Exception as e:
-        logger.error("Redis error in token_in_blocklist: %s", e, exc_info=True)
-        return False
+    """Always False — no blocklist consulted."""
+    return False
 
 
 async def get_blocklist_stats() -> dict:
-    """Stats endpoint helper — used for monitoring dashboards."""
-    try:
-        info = await _get_redis().info()
-        key_count = await _get_redis().dbsize()
-        return {
-            "total_keys": key_count,
-            "used_memory": info.get("used_memory_human", "N/A"),
-            "connected_clients": info.get("connected_clients", 0),
-        }
-    except Exception as e:
-        logger.error("Redis error in get_blocklist_stats: %s", e, exc_info=True)
-        return {"error": "Could not retrieve stats"}
-
-
-async def set_job_status(job_id: str, status_data: dict) -> None:
-    """
-    Write a job-status snapshot for the import pipeline.
-
-    Logs at ERROR with exc_info so the worker Lambda's log group can drive a
-    CloudWatch metric filter / alarm. Silent failures here mean users see a
-    stuck "processing" job until the 24 h TTL expires.
-    """
-    try:
-        await _get_redis().set(
-            f"import_job:{job_id}",
-            json.dumps(status_data),
-            ex=IMPORT_JOB_TTL,
-        )
-    except Exception as e:
-        logger.error(
-            "Redis error in set_job_status (job_id=%s): %s",
-            job_id, e, exc_info=True,
-        )
-
-
-async def get_job_status(job_id: str) -> dict | None:
-    """Read the current status snapshot for a job, or None if missing."""
-    try:
-        result = await _get_redis().get(f"import_job:{job_id}")
-        if result:
-            return json.loads(result)
-        return None
-    except Exception as e:
-        logger.error(
-            "Redis error in get_job_status (job_id=%s): %s",
-            job_id, e, exc_info=True,
-        )
-        return None
+    return {
+        "total_keys":        0,
+        "used_memory":       "0",
+        "connected_clients": 0,
+        "mode":              "disabled (hobby)",
+    }
 
 
 async def clear_expired_tokens() -> int:
-    """
-    Manually clear tokens with no TTL set.
+    """No-op — nothing to clear."""
+    return 0
 
-    Redis handles expiry automatically in normal operation — this only catches
-    keys that were somehow written without an `ex=` argument, as a safety net
-    for cleanup scripts.
 
-    Returns:
-        Number of keys cleared.
+# ─────────────────────── Job status (Postgres-backed) ───────────────────────
+
+async def set_job_status(job_id: str, status_data: dict) -> None:
     """
+    No-op. The durable copy is already written by worker._write_status()
+    into the ImportJob table. This Redis snapshot was only a fast read
+    cache that no longer exists.
+    """
+    logger.debug("set_job_status no-op for job %s", job_id)
+
+
+async def get_job_status(job_id: str) -> Optional[dict]:
+    """
+    Read the current job status from Postgres ImportJob.
+    Returns the same dict shape that the old Redis-backed version did,
+    so existing callers don't need to change.
+    """
+    # Imported inside the function to avoid a circular import at module load.
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    from sqlmodel import select
+    from Cal_Backend.db.main import engine
+    from Cal_Backend.db.models import ImportJob
+
+    Session = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
     try:
-        keys = await _get_redis().keys("*")
-        cleared = 0
-        for key in keys:
-            ttl = await _get_redis().ttl(key)
-            if ttl == -1:
-                await _get_redis().delete(key)
-                cleared += 1
-        return cleared
+        async with Session() as session:
+            result = await session.execute(
+                select(ImportJob).where(ImportJob.id == UUID(job_id))
+            )
+            job = result.scalar_one_or_none()
+            if not job:
+                return None
+
+            payload: dict = {
+                "job_id":          str(job.id),
+                "status":          job.status.value if hasattr(job.status, "value") else str(job.status),
+                "total_items":     job.total_items,
+                "processed_items": job.processed_items,
+                "updated_at":      job.updated_at.isoformat() if job.updated_at else None,
+            }
+            if job.result_stats:
+                payload["result_stats"] = job.result_stats
+            if job.error_message:
+                payload["error"] = job.error_message
+            return payload
     except Exception as e:
-        logger.error("Redis error in clear_expired_tokens: %s", e, exc_info=True)
-        return 0
+        logger.error("Error reading job status from Postgres (job_id=%s): %s", job_id, e, exc_info=True)
+        return None
